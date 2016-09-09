@@ -1,5 +1,8 @@
 """
 Function related to the loading and processing of CPC instruments from TSI
+
+version: 0.0
+date: 2016-09-09
 """
 import pandas as pd
 import os
@@ -144,57 +147,53 @@ def save_to_hdf(data, output_h5_filename, output_file_frequency):
     
 def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, InputTZ=0, OutputTZ=0):
     # Reads CPC data exports from AIM 10 and higher as row based, with ONLY concentration data output
-    import datetime
     
     if output_file_frequency == 'all':
         print('Saving all data to a single HDF file')
     else:
         print('Saving to ' + output_file_frequency + ' HDF file')
     
-    data_present = True
-    i = 0
-    while data_present:
         
-        # Read each row of data, taking into account that each row can change length and parsing format (weird...)
-        rows = pd.read_csv(read_filename, skiprows = range(0,3+i), engine='python', skipinitialspace=True, nrows=1)
-        
-        if len(rows)>0: # haven't yet reached the end of the file   
-
-            # Extract initial timestamp
-            sample_timestamp = pd.to_datetime(rows.iloc[0,1]+' '+rows.iloc[0,2], format = '%m/%d/%y %H:%M:%S')
-            # Extract sample length
-            sample_length = int(rows.iloc[0,3])
-            # Extract sample number
-            samplenum = rows.iloc[0,0]
-
-            # Make sample timestamp array
-            timestamps = [sample_timestamp + datetime.timedelta(seconds=x) for x in range(0, sample_length)]
-            # Remove all non-numeric data (e.g. errors)
-            data_num = rows.select_dtypes(include=['number'])
-            # Remove all additional data that is output in the file
-            conc = data_num.iloc[:,8:(data_num.shape[1]-1)]
-            # Remove any nans
-            conc = conc.dropna(axis=1)
-            
-            # Create dataframe with the extracted data
-            sample_data = {'Timestamp' : pd.Series(timestamps), 'Concentration' : pd.Series(conc.values[0,:])}
-            sample_data = pd.DataFrame(sample_data)
-            sample_data = sample_data.set_index('Timestamp')
+    # Read each row of data, taking into account that each row can change length and parsing format (weird...)
+    df = pd.read_csv(read_filename, skiprows = range(0,3), engine='python', skipinitialspace=True, iterator = True, chunksize = 1000)
     
-            #Correct for Timezone offsets caused by AIM exporting process
-            if InputTZ-OutputTZ != 0 :
-                sample_data = TimeZoneCorrection(sample_data, CurrentTZ = InputTZ, OutputTZ = OutputTZ)
+    for chunk in df:
+        # Extract initial timestamp for each sample (i.e. each row)
+        chunk['sample_timestamp'] = pd.to_datetime(chunk['Start Date']+' '+chunk['Start Time'], format = '%m/%d/%y %H:%M:%S')
 
-            # Save to hdf file            
-            outputfilename = save_to_hdf(sample_data, output_filename_base, output_file_frequency)
+        data = pd.DataFrame(columns = {'Timestamp', 'Concentration'})
+        for rowidx in range(0,len(chunk)):
+            # Create timestamp and extract concentration for each sample in chunk
+            timestamp = [chunk['sample_timestamp'][rowidx] + pd.Timedelta(seconds=x) for x in range(0, chunk['Sample Length'][rowidx])]
+            conc = chunk.iloc[rowidx,12:(12+chunk['Sample Length'][rowidx])]
             
-            # Alter the user where the process is up to
-            print('Data loaded from ' + read_filename +' and sample ' + str(samplenum) + ' saved to ' + outputfilename)
+            print('Formatting sample ' + str(chunk['Sample #'].iloc[rowidx]) + ' of file ' + read_filename)
             
-            i += 1 #iterate
+            # Format data as dataframe
+            data_temp = pd.DataFrame({'Timestamp': timestamp, 'Concentration': conc})
+            # Append new data to current data
+            data = pd.concat([data,data_temp])
+      
+        # Drop duplicates that may be present
+        data = data.drop_duplicates(subset='Timestamp', keep='last')
+        # Set index
+        data = data.set_index('Timestamp')
+        # Coerce data to the correct type
+        data['Concentration'] = data['Concentration'].astype(float)
         
-        else:
-            data_present=False       
+        #Correct for Timezone offsets caused by AIM exporting process
+        if InputTZ-OutputTZ != 0 :
+            data = TimeZoneCorrection(data, CurrentTZ = InputTZ, OutputTZ = OutputTZ)
+        
+        # Save to hdf file
+        print('Saving chunk to file')
+        outputfilename = save_to_hdf(data, output_filename_base, output_file_frequency)
+
+        # Alert the user where the process is up to
+        print('Data loaded from ' + read_filename +' and samples ' + str(chunk['Sample #'].iloc[0]) 
+                    + ' to ' + str(chunk['Sample #'].iloc[-1]) + ' saved to ' + outputfilename)
+
+      
 
     return
     
