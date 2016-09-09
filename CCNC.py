@@ -10,7 +10,7 @@ import glob
 import pickle
 import atmoscripts
 
-def Load_to_HDF(DataPath, output_h5_filename = 'CCNC', resample_timebase = None):
+def Load_to_HDF(DataPath, output_h5_filename = 'CCNC', resample_timebase = None, concat_file_frequency = 'all'):
     #To reload data from the h5 file
     
     os.chdir(DataPath)
