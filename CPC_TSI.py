@@ -125,6 +125,7 @@ def save_to_hdf(data, output_h5_filename, output_file_frequency):
     
 def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, InputTZ=0, OutputTZ=0):
     # Reads CPC data exports from AIM 10 and higher as row based, with ONLY concentration data output
+    import numpy as np
     
     if output_file_frequency == 'all':
         print('Saving all data to a single HDF file')
@@ -148,7 +149,7 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
             print('Formatting sample ' + str(chunk['Sample #'].iloc[rowidx]) + ' of file ' + read_filename)
             
             # Format data as dataframe
-            data_temp = pd.DataFrame({'Timestamp': timestamp, 'Concentration': conc})
+            data_temp = pd.DataFrame({'Timestamp': timestamp, 'Concentration': conc.values})
             # Append new data to current data
             data = pd.concat([data,data_temp])
       
@@ -156,8 +157,8 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
         data = data.drop_duplicates(subset='Timestamp', keep='last')
         # Set index
         data = data.set_index('Timestamp')
-        # Coerce data to the correct type
-        data['Concentration'] = data['Concentration'].astype(float)
+        # Coerce data to the correct type, dealing with infinite values output from AIM
+        data['Concentration'] = [np.nan if x == '1.#INF'  else float(x) for x in data['Concentration']]
         
         #Correct for Timezone offsets caused by AIM exporting process
         if InputTZ-OutputTZ != 0 :
@@ -170,8 +171,6 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
         # Alert the user where the process is up to
         print('Data loaded from ' + read_filename +' and samples ' + str(chunk['Sample #'].iloc[0]) 
                     + ' to ' + str(chunk['Sample #'].iloc[-1]) + ' saved to ' + outputfilename)
-
-      
 
     return
     
