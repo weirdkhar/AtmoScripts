@@ -4,14 +4,148 @@ Functions related to the loading and processing of CCNC data from DMT
 version: 0.1
 date: 2016-08-31
 """
+import pandas as pd
+import os
+import glob
+import pickle
+import atmoscripts
 
 def Load_to_HDF(DataPath, output_h5_filename = 'CCNC', resample_timebase = None):
     #To reload data from the h5 file
+    
+    os.chdir(DataPath)
+    
+    filelist = glob.glob('*.csv')
+    filelist.sort()
+    
+    filelist_df = pd.DataFrame(filelist, columns=['filenames'])
+    
+    if concat_file_frequency.lower() == 'monthly':
+        print('Concatenating to monthly files')
+        periods = get_unique_periods(filelist, concat_file_frequency)
+        filelist_df['id'] = get_month_label(filelist)
+   
+    elif concat_file_frequency.lower() == 'weekly':
+        print('Concatenating to weekly files')
+        periods = get_unique_periods(filelist, concat_file_frequency)
+        filelist_df['id'] = get_week_label(filelist)
+    
+    elif concat_file_frequency.lower() == 'daily':
+        print('Concatenating to daily files')
+        periods = get_unique_periods(filelist, concat_file_frequency)
+        filelist_df['id'] = get_day_label(filelist)
+        
+    elif concat_file_frequency.lower() == 'all':
+        # Continue as normal
+        print('Concatenating all files into a single HDF')
+    
+    else:
+        print("Cannot determine what frequency you want the output file")
+    
+    
+    # Iterate through files
+    periods.sort()
+    for i in range(0, len(periods)):
+        output_h5_filename_ = output_h5_filename + '_' + str(periods[i])
+        filelist_ = list(filelist_df[filelist_df['id'] == periods[i]]['filenames'])
+
+        save_ccn_to_hdf(filelist_, output_h5_filename_, resample_timebase)
+    
+    return None
+
+def get_unique_periods(filelist, frequency):
+     # Extract all unique values of in the filelist (do this using the set command)    
+    months = set(get_month_label(filelist))  
+    days = set(get_day_label(filelist))
+
+    # Get the iso week numbers of each of the unique days in the filelist  
+    weeklabel = set(get_week_label(filelist))
+        
+    if frequency == 'monthly':
+        return list(months)
+    elif frequency == 'daily':
+        return list(days)
+    elif frequency == 'weekly':
+        return list(weeklabel)
+    else:
+        print('Error in get_unique_periods!')
+        return
+        
+def get_week_label(filelist):
+    # Extract the week number of each dates in the filelist
+    import datetime
+    dates = [f[13:19] for f in filelist]
+    weeknum = [str(datetime.date(2000+int(day[0:2]),int(day[2:4]),int(day[4:6])).isocalendar()[1]) for day in dates]
+    year = [str(datetime.date(2000+int(day[0:2]),int(day[2:4]),int(day[4:6])).isocalendar()[0]) for day in dates]
+    #week_label = ['_wk' + str(s) for s in list(weeknum)]
+    week_label = [x+'_wk'+y for x,y in zip(year,weeknum)]
+    return week_label
+    
+def get_day_label(filelist):
+    return [f[13:19] for f in filelist]
+
+def get_month_label(filelist):
+    return [f[13:17] for f in filelist]
+    
+def get_year_label(filelist):
+    return [f[13:15] for f in filelist]
+
+def save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase = None):
+    
+    if os.path.isfile(output_h5_filename +'.h5'): #If previous file exists, append, if not start new
+        
+        files_already_loaded = atmoscripts.read_filelist_from_file('files_loaded.txt')
+        #with open('files_loaded.txt', 'rb') as f:
+        #    files_already_loaded = pickle.load(f)        
+        
+        # Get only the new files to be loaded:
+        filelist = list(set(filelist).difference(set(files_already_loaded)))
+        
+        data_new, fname_current = read_ccn_csv(filelist)
+      
+        data = pd.read_hdf(output_h5_filename +'.h5',key='CCN')
+        
+        data = data.append(data_new)
+    
+    else:
+        data, fname_current = read_ccn_csv(filelist)
+    
+    # Drop any duplicates which may be there, based only on the Timestamp
+    data = data.reset_index().drop_duplicates(subset='timestamp', keep='last')
+    data = data.set_index('timestamp')
+    
+    # Sort data by ascending time
+    data = data.sort_index()
+    
+    
+    data.to_hdf(output_h5_filename +'.h5', key='CCN')
+#    if fname_current is not None: 
+#    if os.path.isfile(fname_current):    try:
+#            os.remove(fname_current)
+#        except:
+#            # do nothing
+#    
+    
+    # Save the filenames that have been loaded to file for next update    
+#    with open('files_loaded.txt', 'wb') as f:
+    try:
+        files_already_loaded
+    except NameError:
+        filelist = filelist
+    else:
+        filelist = filelist + files_already_loaded    
+#        pickle.dump(filelist, f)
+    atmoscripts.write_filelist_to_file(filelist, 'files_loaded.txt')
+    
+    if resample_timebase is not None:
+        resample_timebase(data)   
+        
+    return None
+
+def read_ccn_csv(filelist):
     import pandas as pd
     import os
-    import glob
-    import pickle
-    os.chdir(DataPath)
+    import numpy as np
     
     # Specify the column names once.
     colnames = [
@@ -25,52 +159,31 @@ def Load_to_HDF(DataPath, output_h5_filename = 'CCNC', resample_timebase = None)
                 'Bin 16', 'Bin 17', 'Bin 18', 'Bin 19', 'Bin 20', 'CCN Number Conc', 
                 'Valve Set', 'Alarm Code', 'Alarm Sum'
                 ]
-    
-    if os.path.isfile(output_h5_filename +'.h5'): #If previous file exists, append, if not start new
-    
-        data = pd.read_hdf(output_h5_filename +'.h5',key='CCN')
-        
-        with open('last_file_loaded.csv', 'rb') as f:
-            last_file_loaded = pickle.load(f)
-        #last_file_loaded = 'CCN 100 data 160326090000.csv' ####################
-        filelist = glob.glob('*.csv')
-        filelist.sort()
-        
-        filelist_index_start = filelist.index(last_file_loaded)
-        filelist_index_final = len(filelist)-1
-        
-        filelist = filelist[filelist_index_start:filelist_index_final]
-        
-        del filelist_index_start, filelist_index_final, last_file_loaded
-        
-            
-        for i in range(0,len(filelist)):
-                # Load csv data        
-                data_temp = pd.read_csv(filelist[i], 
-                            names = colnames, 
-                            skiprows = range(0,6), 
-                            engine='python',
-                            skipinitialspace = True, 
-                            usecols=range(49)
-                            )  
-                # Read date from csv file 
-                date_temp = pd.read_csv(filelist[i], names = ['label', 'date'], skiprows = range(2,len(data_temp)+6))['date'][1]
+    delete_temp_files_manually = False
+    temp_files_to_del = [] #initialise
+    fname_previous = ''
                 
-                # Use the read date and replace the time column with timestamps.                   
-                for j in range(0, len(data_temp)):
-                        time_temp = str(data_temp['Time'][j])
-                        data_timestamp = pd.to_datetime(date_temp + ' ' + time_temp)
-                        data_temp = data_temp.replace(to_replace=data_temp['Time'][j], value=data_timestamp)
-                
-                data_temp = data_temp.set_index('Time')        
-                #Append new csv file data to existing dataframe
-                data = data.append(data_temp)#, ignore_index=True) 
-                
-    
+      
+    # If there are LOTS of files, break up into groups of 100 before combining into the final set (to manage RAM)
+    filelim = 50
+    if len(filelist) > filelim:
+        needs_final_grouping = True
     else:
-        filelist = glob.glob('*.csv')
-        filelist.sort()
+        needs_final_grouping = False
+    
+    j1 = int(np.ceil(len(filelist)/filelim)) # get the number of group files
+        
+    for j in range(0, j1):
+        
+        i0 = j*filelim
+               
+        if j == j1-1: # Last group file has different final limit
+            i1 = len(filelist)
+        else:
+            i1 = (j+1)*filelim     
+        
         #Initialise
+        fname_current = None
         data = pd.read_csv(filelist[0], 
                             names = colnames, 
                             skiprows = range(0,6), 
@@ -79,16 +192,8 @@ def Load_to_HDF(DataPath, output_h5_filename = 'CCNC', resample_timebase = None)
                             usecols=range(49)
                             )
         # Read date from csv file 
-        date_temp = pd.to_datetime(pd.read_csv(filelist[0], names = ['label', 'date'], skiprows = range(2,len(data)+6))['date'][1], format = "%m/%d/%y")
-        
-        # Use the read date and replace the time column with timestamps.
-        for j in range(0,len(data)):
-            data_timestamp = pd.to_datetime(date_temp + ' ' + data['Time'][j])
-            data = data.replace(to_replace=data['Time'][j], value=data_timestamp)
-        
-        
-        
-        for i in range(1,len(filelist)):
+        data['date'] = str(pd.read_csv(filelist[0], names = ['label', 'date'], skiprows = range(2,len(data)+6))['date'][1])                                 
+        for i in range(i0, i1):
                 # Load csv data        
                 data_temp = pd.read_csv(filelist[i], 
                             names = colnames, 
@@ -98,50 +203,69 @@ def Load_to_HDF(DataPath, output_h5_filename = 'CCNC', resample_timebase = None)
                             usecols=range(49)
                             )  
                 # Read date from csv file 
-                date_temp = pd.read_csv(filelist[i], names = ['label', 'date'], skiprows = range(2,len(data_temp)+6))['date'][1]
-                # Use the read date and replace the time column with timestamps.        
-                        
-                for j in range(0, len(data_temp)):
-                        time_temp = str(data_temp['Time'][j])
-                        data_timestamp = pd.to_datetime(date_temp + ' ' + time_temp)
-                        data_temp = data_temp.replace(to_replace=data_temp['Time'][j], value=data_timestamp)
-        
+                data_temp['date'] = str(pd.read_csv(filelist[i], names = ['label', 'date'], skiprows = range(2,len(data)+6))['date'][1])
+    
                 #Append new csv file data to existing dataframe
                 data = data.append(data_temp)#, ignore_index=True) 
                 
                 # Save new data to file
-                fname_current = 'CCNC_noIndex_temp_'+str(i)+'of'+str(len(filelist))+'.h5'
+                fname_current = 'CCNC_noIndex_temp_'+str(i0)+'to'+str(i+2)+'of'+str(len(filelist)+1)+'.h5'
                 data.to_hdf(fname_current, key='CCN')
+                
                 # Remove the temporary file    
-                if os.path.isfile('CCNC_noIndex_temp_'+str(i-1)+'of'+str(len(filelist))+'.h5'):
-                    os.remove('CCNC_noIndex_temp_'+str(i-1)+'of'+str(len(filelist))+'.h5')
-            
-    del  colnames, data_temp, i, j, data_timestamp
-    
+                if os.path.isfile(fname_previous):
+                    try:
+                        os.remove(fname_previous)
+                    except PermissionError:
+                        delete_temp_files_manually = True
+                        temp_files_to_del.append(fname_previous)
+                fname_previous = fname_current
         
-    # Change the index to the timestamp
-    data = data.set_index('Time')
-    
-    #Remove duplicates
-    data = data.drop_duplicates()
-    
-    # Sort data by ascending time
-    data = data.sort_index()
-    
-    
-    data.to_hdf(output_h5_filename +'.h5', key='CCN')
-    os.remove(fname_current)
-    
-    #Save the last filenme loaded to file for next update
-    last_file_loaded = filelist[len(filelist)-1]
-    with open('last_file_loaded.csv', 'wb') as f:
-        pickle.dump(last_file_loaded, f)
-    
-    if resample_timebase is not None:
-        resample_timebase(data)    
-    
-    return None
+        # Create timstamp from date and time columns
+        data['timestamp'] = pd.to_datetime(data['date']+' '+data['Time'], format = "%m/%d/%y %H:%M:%S")
+        
+        
+        # Drop any duplicates which may be there, based only on the Timestamp
+        data = data.drop_duplicates(subset='timestamp', keep='last')
+        # Change the index to the timestamp
+        data = data.set_index('timestamp')
+        
+        
+        # Save group file
+        if needs_final_grouping:
+            data.to_hdf('CCN_group_'+str(j+1)+'of'+str(j1)+'.h5', key='CCN')
 
+        # Remove last temporary file
+        try:
+            os.remove(fname_previous)
+        except:
+            continue 
+        
+        
+    
+    if needs_final_grouping:
+        del data, data_temp
+        
+        for j in range(0, j1):
+            data_temp = pd.read_hdf('CCN_group_'+str(j+1)+'of'+str(j1)+'.h5', key='CCN')
+            try:
+                data
+            except NameError:
+                data = data_temp
+            else:
+                data = data.append(data_temp)
+            # Remove the temporary file    
+            if os.path.isfile('CCN_group_'+str(j+1)+'of'+str(j1)+'.h5'):
+                os.remove('CCN_group_'+str(j+1)+'of'+str(j1)+'.h5')
+    
+    # Clean up any files that couldn't be deleted due to being locked previously
+    if delete_temp_files_manually:
+        for k in range(0,len(temp_files_to_del)):
+            os.remove(temp_files_to_del[k])
+        
+    return data, fname_current
+    
+    
 def resample_timebase(data=0,RawDataPath='',input_h5_filename='',variable='CCN',time_int='default'):
     ### Time resampling
 
