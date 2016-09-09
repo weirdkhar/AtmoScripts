@@ -251,7 +251,7 @@ def read_cpc_csv_column(read_filename, output_filename_base, output_file_frequen
     # function to read column based cpc exported data from AIM versions 9 or below. 
 	# This is slow - preferencially use the row based function 
 	
-	colnames = ['Timestamp','Concentration'] #Instantiate    
+    colnames = ['Timestamp','Concentration'] #Instantiate    
     
     # Load date
     date_row = pd.read_csv(read_filename,
