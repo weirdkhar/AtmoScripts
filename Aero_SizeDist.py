@@ -124,13 +124,18 @@ def plot(
     
     
     
-def plot_axes(axesnum, data, sizeBins, ylabel, title, common_xlim, fig, num_plots, zmin, zmax, yticklocation, logscale_z):
+def plot_axes(axesnum, data, sizeBins, ylabel, title, common_xlim, fig, num_plots, zmin, zmax, yticklocation, logscale_z, ax = None):
     
     bbox_props = dict(boxstyle="round", fc="w", ec="0.5", alpha=0.8)  
     
     data = project_to_continuous_timestep(data) #Ensure data is projected onto a continuous timestep so that the image doesn't fill in data
-    ax = fig.add_subplot(num_plots,1,axesnum)
-    im, cbar = specgram_smps(data.index, sizeBins, data, ax, fig, common_xlim, zmin = zmin, zmax = zmax, yticklocation = yticklocation,logscale_z = logscale_z)
+    # try to add a subplot if creating a new figure, if not, then use the fig variable which is already a subplot axes
+    if ax is None:
+        ax = fig.add_subplot(num_plots,1,axesnum)
+    #except AttributeError:
+    #    ax = fig
+
+    im, cbar = specgram_smps(data.index, np.asarray(sizeBins), data, ax, fig, common_xlim, zmin = zmin, zmax = zmax, yticklocation = yticklocation,logscale_z = logscale_z)
     ax.set_ylabel(ylabel)
     ax.annotate(title, xy=(0.025, 0.9), xycoords='axes fraction', bbox=bbox_props)
 
@@ -150,7 +155,7 @@ def specgram_smps(time, sizeBins, data, ax, fig, common_xlim, zmin, zmax, ytickl
     
     # Format data appropriately
     x_time = mdates.datestr2num(time.strftime('%Y-%m-%d %H:%M:%S')) # Convert from datetime64 to string to datenum
-    y_lims = sizeBins   
+    y_lims = sizeBins
     X, Y = np.meshgrid(x_time,y_lims,copy=False,indexing='xy')
     
     
@@ -201,6 +206,7 @@ def specgram_smps(time, sizeBins, data, ax, fig, common_xlim, zmin, zmax, ytickl
     date_format = mdates.DateFormatter(xlabel_format)
     ax.xaxis.set_major_formatter(date_format)
     fig.autofmt_xdate() # This simply sets the x-axis data to diagonal so it fits better.
+        
     
 
     # Add the colorbar in a seperate axis
