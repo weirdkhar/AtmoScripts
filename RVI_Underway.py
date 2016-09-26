@@ -523,60 +523,7 @@ def Load_CSV_UWY_to_HDF(uwy_path,earlyVoyageNames=False):
         
     return
     
-def rename_columns_MaidenVoyage(uwy_data):
     
-    uwy_data.rename(columns={
-                            'Air Temperature (degC)': 'AirTemp',
-                            'Air flow rate (L/h)' : 'AirInletFlowRate',
-                            'CH4 Concentration (ppm)' : 'ch4',
-                            'CH4 dry Concentration (ppm)': 'ch4_dry',
-                            'CO2 Concentration (ppm)' : 'co2', 
-                            'CO2 dry Concentration (ppm)' : 'co2_dry', 
-                            'Concentration of black carbon (ug/m^3)' : 'BC_uwy',
-                            'Corrected Wind Direction (degree)' : 'WindDirTru',
-                            'Corrected Wind Speed (knot)' : 'WindSpdTru', 
-                            'Date/Time' : 'Date/Time_uwy',
-                            'Ozone (ppb)' : 'O3_1', 
-                            'Ozone (ppb).1' : 'O3_2',
-                            'Uncorrected Wind Direction (degree)': 'WindDirRel', 
-                            'Uncorrected Wind Speed (knot)' : 'WindSpdRel',
-                            'anemometer air heading (degree)' : 'WindDir_anem',
-                            'anemometer air speed (knot)' : 'WindSpd_anem',
-                            'conductivity (mS/cm)' : 'conductivity',
-                            'cumulative hour rainfall (mm)' : 'rainAccum',
-                            'current rainfall rate for the foremast optical rain gauge (mm/h)' : 'rainRate',
-                            'depth (m)' : 'depth', 
-                            'foremast optical cumulative hour rainfall (mm)' : 'rainAccum_optical',
-                            'port incoming long wave radiation (W/m^2)' : 'Radi_port',
-                            'port incoming photosynthetically active radiation (uE/m^2/s)' : 'PAR_port',
-                            'port incoming short wave radiation (W/m^2)' : 'Pyra_port',
-                            'starboard incoming long wave radiation (W/m^2)' : 'Radi_stbd',
-                            'starboard incoming photosynthetically active radiation (uE/m^2/s)' : 'PAR_stbd',
-                            'starboard incoming short wave radiation (W/m^2)' : 'Pyra_stbd',
-                            'water temperature (degree_Celsius)' : 'seaTemp'                     
-                        },inplace=True)
-    uwy_data.drop([
-                  'CO2 Pump speed (l/min)', 
-                  'Condenser temperature (degC)', 
-                  'Drop Keel system fault',
-                  'Equilibrator  pressure (hPa)', 
-                  'Equilibrator water temperature (degC)',
-                  'Licor pressure (hPa)', 
-                  'Lock on water',
-                  'Port keel is locked',
-                  'Sensor Temperature (degC)', 
-                  'Starboard keel is locked',
-                  'Vent flow (ml/min)', 
-                  'Water flow (l/min)',
-                  'Water vapour (mmol/mole)', 
-                  'port drop keel extension (m)',
-                  'starboard drop keel extension (m)', 
-                  'water flow in branch (l/min)',
-                  'water flow in main (l/min)',
-                  'water pressure (bar)'
-                  ], axis=1, inplace=True)   
-                  
-    return uwy_data   
 #def create_uwy_masks(DataPath,
 #                     apply_mask_to_create_filt_dataset,
 #                     BC_lim = 0.05, 
@@ -696,7 +643,6 @@ def rename_columns_MaidenVoyage(uwy_data):
 #    return
     
     
-
     
 def Create_WndDir_VectorMean(uwy_data):
     import numpy as np  
@@ -750,7 +696,6 @@ def Create_WndDir_VectorMean(uwy_data):
     return uwy_data
     
 
-	
 
 def create_exhaust_mask(uwy_data, 
                           Filter4WindDir = True, Filter4BC = True, Filter4CNstd = True, Filter4O3 = True, FiltSpan = 0,

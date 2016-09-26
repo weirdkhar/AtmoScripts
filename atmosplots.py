@@ -173,7 +173,8 @@ def diurnal(data_timeseries,
     saveorshowplot(plt,SaveOrShowPlot,output_path,outputfilename+'_'+data.columns[0])
     
     return
-      
+    
+    
 def stats_from_groupby(data):
     # group by the index 
     #data = pd.to_numeric(data.columns[0], errors='coerce')
@@ -322,6 +323,8 @@ def weekly_cycle(data_timeseries,
     plt.tight_layout()
 
     saveorshowplot(plt,SaveOrShowPlot,output_path,outputfilename+'_'+data.columns[0])
+    
+
 
 def windrose(wd, ws, bins = np.arange(0,35,5),
              colormap = plt.cm.hot,
@@ -389,6 +392,7 @@ def plot_timeseries(x_data = None,
          outputpath = outputpath
          )
     return
+
 
 def plot(x_data = None,
          y_data = None,
@@ -660,7 +664,8 @@ def plot_daily(x_data = None,
                      outputpath = directory
                      )
     return
-  
+
+    
 def plot_interval(x_data = None,
              y_data = None,
              interval_hours = 24,
@@ -1002,74 +1007,7 @@ def subplots_singlecolumn_timeseries(df,
     return
 
 
-def plot_specgram(
-            sizedist_matrix,
-            sizedist_xaxis = None,
-            sizedist_yaxis = None,
-            as_subplot = False,
-            fig = None,
-            ax = None,
-            figsize = (12,4),
-            zmin = 1,
-            zmax = 1000,
-            yticklocation = None,        
-            logscale_z = True,
-            ylabel = 'Mobility diameter (nm)',
-            xlabel = '',
-            title = '',
-            x_axis_visible = True,
-            SaveOrShowPlot = 'show',
-            outputfilename = 'plot.pdf',
-            outputpath = None
-		):
-	''' Input data can be:
-		- a dataframe with x and y values as the index and column names respectively, any definted x or y axis is ignored
-		- a numpy matrix, where the sizedist_xaxis and sizedist_yaxis must be defined
-		
-		as_subplot - default False. 
-                  Set to true if you want this figure as a subplot of a larger figure. 
-                  If set to true, you must input a fig object
-		
-		
-	'''	
-	
-	# Format the input data
-	if type(sizedist_matrix) == pd.core.frame.DataFrame: # dataframe input
-		xaxis = sizedist_matrix.index
-		yaxis = [float(i) for i in sizedist_matrix.columns]	
-	elif type(sizedist_matrix) == np.ndarray:
-		if (sizedist_xaxis or sizedist_yaxis) == None:
-			print('Input data is a numpy array, please define both x and y axis')
-		xaxis = sizedist_xaxis
-		yaxis = sizedist_yaxis
-	xlim = (xaxis.min(), xaxis.max())
-	
-     # Make sure data gaps are displayed
-	dfidx = pd.DataFrame(index = pd.date_range(start = xaxis[0], end = xaxis[-1], freq = '5Min'))
-	sizedist_matrix = pd.concat([sizedist_matrix, dfidx],axis=1)
-	
-	# Plot
-	if as_subplot:
-         if (fig is None) or (ax is None):
-             print("ERROR - to plot as part of a subplot, you must define fig and ax")
-         ax = aero_sizedist.plot_axes(1, sizedist_matrix,yaxis,ylabel,title,xlim, fig,1, zmin, zmax, yticklocation, logscale_z, ax = ax)
-	
-	else:
-         fig = plt.figure(figsize=(figsize))
-         ax = aero_sizedist.plot_axes(1, sizedist_matrix,yaxis,ylabel,title,xlim, fig,1, zmin, zmax, yticklocation, logscale_z)
-	
-	
-     
-	if x_axis_visible:
-		plt.setp(ax.get_xticklabels(), rotation=-20, horizontalalignment='left')
-		# If less than 1 day of data is being plotted, put a day label on the plot so that xlabels can be times.
-		if (xlim[1]-xlim[0]).days < 1:   
-			daylabel = (xlim[0]).strftime("%b %d")
-			bbox_props = dict(boxstyle="round", fc="w", ec="0.5", alpha=0.8)
-			ax.annotate(daylabel, xy=(0.9, 0.9), xycoords='axes fraction', bbox=bbox_props)
-	
-	saveorshowplot(plt,SaveOrShowPlot, outputpath, outputfilename)
-	return
+
 #%% Map Plots
 ### Plotting maps
 # import cartopy
@@ -1229,7 +1167,7 @@ def map_shiptrack(lat,
     return
     
 
-def plot_smps_aps_nano(
+def plot_smps(
         aps=None, 
         smps=None,
         nano=None,
