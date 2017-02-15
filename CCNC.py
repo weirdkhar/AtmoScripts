@@ -1,17 +1,225 @@
 """
 Functions related to the loading and processing of CCNC data from DMT
 
-version: 0.1
-date: 2016-08-31
+version: 1.0
+date: 2017-02-15
 """
-import pandas as pd
 import pandas as pd
 import numpy as np
 import os
 import glob
 import pickle
 import atmoscripts
+import sys
+import RVI_Underway
+import datetime
 
+def main():
+    '''
+    Collection of scripts to concatenate, QA/QC and perform flow calibrations 
+    on raw data coming from the CCNC-100 instrument made by Droplet Measurement 
+    Technologies. 
+    
+    Usage:
+    python CCNC.py ccn_path output_time_resolution, filterBool, flow_cal_file
+    
+    where:
+        ccn_path (str) - path where raw data files exist
+        output_time_resolution (str) - resolution of output data. Must be in 
+            the form '--#U' where # is a numeral and U is replaced with either
+            "S" for seconds, "M" for minutes, "H" for hours, or "D" for days
+        filterBool (bool) - apply filtering or just concatenate raw data
+        flow_cal_file (str) - file containing datetimes and flow data for flow
+            calibrations. This file must be in the same folder as the raw data
+        
+    Functions:
+    load_and_process
+    Load_to_HDF
+    save_ccn_to_hdf
+    read_ccn_csv
+    resample_timebase
+    DataQC
+    filter_uwy
+    filter_ccn_stat
+    flow_cal
+    get_unique_periods
+    get_week_label
+    get_day_label
+    get_month_label
+    get_year_label
+    
+    '''
+    # If no input given, show the docstring only
+    if len(sys.argv[0:]) <= 1:
+        print(main.__doc__)
+        return
+    
+    
+    ccn_raw_data_path = sys.argv[0]
+    ccn_output_data_path = sys.argv[1]
+    output_time_resolution = sys.argv[2]
+    filterBool = sys.argv[3]
+    flow_cal_file = sys.argv[4]
+    
+    # Test that the inputs are the correct format 
+    if not os.path.exists(ccn_raw_data_path):
+        print('Raw data path does not exist. Exiting')    
+        return
+    
+    if not os.path.exists(ccn_output_data_path):
+        ccn_output_data_path = create_temp_output_directory()
+        print('Output data path does not exist. Creating new folder in:')
+        print(ccn_output_data_path)
+        
+    if output_time_resolution not in ['--1S','--5S','--10S','--15S','--30S',
+                                      '--1M','--2M','--5M','--10M','--15M',
+                                      '--20M','--30M','--1H','--2H','--3H',
+                                      '--6H','--8H','--12H','--1D']:
+        output_time_resolution = '--1S'
+        print('No valid output time resolution given, \
+                  no time resampling applied')
+    output_time_resolution = output_time_resolution[2:] # remove the '--'
+    
+    assert isinstance(filterBool,bool), 'filterBool must be a boolean value'
+    if filterBool:
+        filtOrRaw = 'filt'
+    else:
+        filtOrRaw = 'raw'
+        
+    assert os.path.isfile(flow_cal_file), "Can't find flow cal file!"
+    
+    
+    
+    LoadAndProcess(ccn_raw_data_path,
+                   ccn_output_data_path,
+                   timeResolution = output_time_resolution,
+                   filtOrRaw = filtOrRaw,
+                   flow_cal_file = flow_cal_file)
+    
+    return
+
+def create_temp_output_directory():
+    '''
+    Creates a default output directory when one isn't specified
+    '''
+    # Check if s drive exists (i.e. on the CSIRO VM), if not, put it in 
+    # the default drive on a computer
+    if os.path.exists('s:'):
+        drive = 's:'
+    else:
+        drive = sys.executable[0:2]
+    
+    output_dir = drive+ '\\data_ccn'
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    return output_dir
+
+def load_flow_cals(flow_cal_file, CCN_raw_path):
+    '''
+    Loads flow calibration data (i.e. timestamps and flow from flow checks)
+    from file. There is an assumption that the calibration file (in csv) has 
+    been created using excel from data extracted from the text log file.
+    '''
+    os.chdir(CCN_raw_path)
+    
+    assert os.path.isfile(flow_cal_file), \
+            'Flow cal file does not exists! Exiting'
+    
+    flow_cal_df = pd.read_csv(flow_cal_file, delimiter = ',')        
+    
+    return flow_cal_df
+    
+def LoadAndProcess(CCN_raw_path, 
+                   CCN_output_path = '',
+                   filename_base = 'CCN', 
+                   filtOrRaw='filt', 
+                   timeResolution='1S',
+                   mask_period_timestamp_list = [''],
+                   CCN_flow_check_df = '',
+                   CCN_flow_setpt = 500,
+                   CCN_flow_polyDeg = 2,
+                   flow_cal_file = ''
+                   ):
+    os.chdir(CCN_raw_path)
+    
+    
+
+    # Check if any h5 file has been produced yet 
+    # (ie. the initial processing has occurred)
+    if not glob.glob('*.h5'):
+        Load_to_HDF(CCN_raw_path,filename_base)
+        
+    filename = filename_base+'_'+timeResolution+'.h5'
+    filename_1sec = filename_base+'_'+filtOrRaw+'.h5'
+    filename_raw = 'CCNC.h5'
+#
+    
+    if filtOrRaw.lower() == 'filt':
+        if os.path.isfile(filename):
+            ccn = pd.read_hdf(filename,key=filename_base)
+            NeedsTimeResampling = False
+            ccn = filter_ccn_stat(data = ccn, std_lim = 150, removeData=True)
+            return ccn
+        elif os.path.isfile(filename_1sec):
+            ccn = pd.read_hdf(filename_1sec,key=filename_base)
+            NeedsTimeResampling = True 
+        return ccn
+    elif filtOrRaw.lower() == 'raw':
+        if os.path.isfile(filename_1sec):
+            ccn = pd.read_hdf(filename_1sec,key=filename_base)
+        elif os.path.isfile(filename_raw):
+            ccn = pd.read_hdf(filename_raw,key=filename_base)
+        # Return the raw file if resampling has already been done
+        if os.path.isfile(filename): 
+            return ccn
+        else:
+            NeedsTimeResampling = True
+    else:
+        print("No hdf file exists with the raw data! Please run the following \
+              function before this one: CCNC.Load_to_HDF")
+        return
+        
+    filt = False #Initialise
+    if filtOrRaw.lower() == 'raw':
+        # QC based on instrument parameters
+        ccn = DataQC(ccn)
+        
+        # Flow calibrations
+        # Load flow_cal_file if its provided
+        if not (flow_cal_file == ''):
+            CCN_flow_check_df = load_flow_cals(flow_cal_file, CCN_raw_path)
+        if not (CCN_flow_check_df == ''):
+            ccn = flow_cal(ccn,CCN_flow_check_df,
+                           CCN_flow_setpt,polydeg=CCN_flow_polyDeg)
+            filt = True
+        # work through mask periods and set values to nan
+        for i in range(int(len(mask_period_timestamp_list)/2)):
+            ccn.loc[(ccn.index >= mask_period_timestamp_list[2*i]) & 
+                    (ccn.index < mask_period_timestamp_list[2*i+1])]= np.nan
+            filt = True
+        # Save to file as 1 second filtered data  
+        if filt:
+            ccn.to_hdf(filename_base+'_filt.h5',key = filename_base)
+    else:
+        print("Don't know what to load. Please specify either Raw or Filt")
+        return
+    
+    
+    if NeedsTimeResampling:     
+        #Resample to 5 second time base, then join with UWY dataset
+        ccn = resample_timebase(data = ccn, 
+                                variable = filename_base, 
+                                time_int=[timeResolution])   
+        
+        ccn = filter_ccn_stat(data = ccn, std_lim = 150, removeData=True)
+        
+    
+    return ccn
+    
+
+    
+    
 def Load_to_HDF(DataPath, 
 				output_h5_filename = 'CCNC', 
 				resample_timebase = None, 
@@ -79,27 +287,6 @@ def get_unique_periods(filelist, frequency):
         print('Error in get_unique_periods!')
         return
         
-def get_week_label(filelist):
-    # Extract the week number of each dates in the filelist
-    import datetime
-    dates = [f[13:19] for f in filelist]
-    weeknum = [str(datetime.date(2000+int(day[0:2]),
-               int(day[2:4]),int(day[4:6])).isocalendar()[1]) for day in dates]
-    year = [str(datetime.date(2000+int(day[0:2]),int(day[2:4]),
-               int(day[4:6])).isocalendar()[0]) for day in dates]
-    #week_label = ['_wk' + str(s) for s in list(weeknum)]
-    week_label = [x+'_wk'+y for x,y in zip(year,weeknum)]
-    return week_label
-    
-def get_day_label(filelist):
-    return [f[13:19] for f in filelist]
-
-def get_month_label(filelist):
-    return [f[13:17] for f in filelist]
-    
-def get_year_label(filelist):
-    return [f[13:15] for f in filelist]
-
 def save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase = None):
     
     #If previous file exists, append, if not start new
@@ -155,9 +342,6 @@ def save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase = None):
     return None
 
 def read_ccn_csv(filelist):
-    import pandas as pd
-    import os
-    import numpy as np
     
     # Specify the column names once.
     colnames = [
@@ -384,7 +568,6 @@ def DataQC(CCN_data,
     """
     Filter data that is out of spec. 
     """    
-    import numpy as np
     
     
     ### Flag data to have a closer look at.
@@ -440,21 +623,8 @@ def DataQC(CCN_data,
                           CCNC_data['T OPC']) > 1]= np.nan 
         
     return CCNC_data#, ReviewData)
-
-
     
-def uwy_filter(uwy_merge_data,
-               uwy_path):
-    
-    assert isinstance(uwy_path, str), "Please define data path as string"
-    if 'mask' not in uwy_merge_data.columns:
-        import RVI_Underway
-        RVI_Underway.create_uwy_masks(uwy_path,
-                                      apply_mask_to_create_filt_dataset=False)
-        
-    uwy_merge_data.loc[pd.isnull(uwy_merge_data['mask'])] = np.nan
 
-    return uwy_merge_data
 
 def flow_cal(data, measured_flows_df, set_flow_rate, polydeg=2):
     ''' Calibrates CPC_data for measured flow rates.
@@ -466,8 +636,7 @@ def flow_cal(data, measured_flows_df, set_flow_rate, polydeg=2):
      - polydeg - the degree of the polynomial to fit to the measured data and 
          correct with.
     '''
-    import numpy as np
-    import pandas as pd
+    
     # Convert dates to seconds since 1 Jan 2000
     x = (measured_flows_df.index - \
          pd.to_datetime('2000-01-01 00:00:00')).total_seconds()
@@ -480,97 +649,62 @@ def flow_cal(data, measured_flows_df, set_flow_rate, polydeg=2):
     #plt.plot(x,y,'.',xp,p(xp),'--')
     
     return data
+
     
-def ccn_stat_filt(data, std_lim = 150, removeData = False):
-    import numpy as np
+    
+def filter_uwy(uwy_merge_data,
+               uwy_path):
+    
+    assert isinstance(uwy_path, str), "Please define data path as string"
+    if 'mask' not in uwy_merge_data.columns:
+        
+        RVI_Underway.create_uwy_masks(uwy_path,
+                                      apply_mask_to_create_filt_dataset=False)
+        
+    uwy_merge_data.loc[pd.isnull(uwy_merge_data['mask'])] = np.nan
+
+    return uwy_merge_data
+
+
+    
+def filter_ccn_stat(data, std_lim = 150, removeData = False):
     if removeData:
         data.loc[data['ccn_std'] > std_lim] = np.nan
     else:
         data.loc[data['ccn_std'] > std_lim,'ccn_std_mask'] = np.nan
     return data
+
+
+    
+def get_week_label(filelist):
+    # Extract the week number of each dates in the filelist
+    
+    dates = [f[13:19] for f in filelist]
+    weeknum = [str(datetime.date(2000+int(day[0:2]),
+               int(day[2:4]),int(day[4:6])).isocalendar()[1]) for day in dates]
+    year = [str(datetime.date(2000+int(day[0:2]),int(day[2:4]),
+               int(day[4:6])).isocalendar()[0]) for day in dates]
+    #week_label = ['_wk' + str(s) for s in list(weeknum)]
+    week_label = [x+'_wk'+y for x,y in zip(year,weeknum)]
+    return week_label
+
+
+    
+def get_day_label(filelist):
+    return [f[13:19] for f in filelist]
+
+    
+    
+def get_month_label(filelist):
+    return [f[13:17] for f in filelist]
     
     
     
-def LoadAndProcess(CCN_path, 
-                   filename_base = 'CCN', 
-                   filtOrRaw='filt', 
-                   timeResolution='5S',
-                   mask_period_timestamp_list = [''],
-                   CCN_flow_check_df = '',
-                   CCN_flow_setpt = 500,
-                   CCN_flow_polyDeg = 2
-                   ):
-    import pandas as pd
-    import numpy as np
-    import os
-    os.chdir(CCN_path)
+def get_year_label(filelist):
+    return [f[13:15] for f in filelist]
+  
+   
     
-    import glob
-    # Check if any h5 file has been produced yet 
-    # (ie. the initial processing has occurred)
-    if not glob.glob('*.h5'):
-        Load_to_HDF(CCN_path,filename_base)
-        
-    filename = filename_base+'_'+timeResolution+'.h5'
-    filename_1sec = filename_base+'_'+filtOrRaw+'.h5'
-    filename_raw = 'CCNC.h5'
-#
-    
-    if filtOrRaw.lower() == 'filt':
-        if os.path.isfile(filename):
-            ccn = pd.read_hdf(filename,key=filename_base)
-            NeedsTimeResampling = False
-            ccn = ccn_stat_filt(data = ccn, std_lim = 150, removeData=True)
-            return ccn
-        elif os.path.isfile(filename_1sec):
-            ccn = pd.read_hdf(filename_1sec,key=filename_base)
-            NeedsTimeResampling = True 
-        return ccn
-    elif filtOrRaw.lower() == 'raw':
-        if os.path.isfile(filename_1sec):
-            ccn = pd.read_hdf(filename_1sec,key=filename_base)
-        elif os.path.isfile(filename_raw):
-            ccn = pd.read_hdf(filename_raw,key=filename_base)
-        # Return the raw file if resampling has already been done
-        if os.path.isfile(filename): 
-            return ccn
-        else:
-            NeedsTimeResampling = True
-    else:
-        print("No hdf file exists with the raw data! Please run the following \
-              function before this one: CCNC.Load_to_HDF")
-        return
-        
-    filt = False #Initialise
-    if filtOrRaw.lower() == 'raw':
-        # QC based on instrument parameters
-        ccn = DataQC(ccn)
-        
-        # Flow calibrations
-        if (not CCN_flow_check_df == ''):
-            ccn = flow_cal(ccn,CCN_flow_check_df,
-                           CCN_flow_setpt,polydeg=CCN_flow_polyDeg)
-            filt = True
-        # work through mask periods and set values to nan
-        for i in range(int(len(mask_period_timestamp_list)/2)):
-            ccn.loc[(ccn.index >= mask_period_timestamp_list[2*i]) & 
-                    (ccn.index < mask_period_timestamp_list[2*i+1])]= np.nan
-            filt = True
-        # Save to file as 1 second filtered data  
-        if filt:
-            ccn.to_hdf(filename_base+'_filt.h5',key = filename_base)
-    else:
-        print("Don't know what to load. Please specify either Raw or Filt")
-        return
-    
-    
-    if NeedsTimeResampling:     
-        #Resample to 5 second time base, then join with UWY dataset
-        ccn = resample_timebase(data = ccn, 
-                                variable = filename_base, 
-                                time_int=[timeResolution])   
-        
-        ccn = ccn_stat_filt(data = ccn, std_lim = 150, removeData=True)
-        
-    
-    return ccn
+# if this script is run at the command line, run the main script   
+if __name__ == '__main__': 
+	main()
