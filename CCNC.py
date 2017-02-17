@@ -4,15 +4,18 @@ Functions related to the loading and processing of CCNC data from DMT
 version: 1.0
 date: 2017-02-15
 """
+import sys
 import pandas as pd
 import numpy as np
 import os
 import glob
 import pickle
+import importlib.util
 import atmoscripts
-import sys
 import RVI_Underway
 import datetime
+import argparse
+
 
 def main():
     '''
@@ -21,55 +24,74 @@ def main():
     Technologies. 
     
     Usage:
-    python CCNC.py ccn_path output_time_resolution, filterBool, flow_cal_file
+    python CCNC.py raw_path output_path output_filetype output_time_resolution, 
+    filterBool, flow_cal_file
     
     where:
-        ccn_path (str) - path where raw data files exist
+        raw_path (str) - path where raw data files exist
+        output_path (str) - path where output data files are written
+        output_filetype (str) - either 'hdf', 'h5' or 'netcdf'
         output_time_resolution (str) - resolution of output data. Must be in 
             the form '--#U' where # is a numeral and U is replaced with either
             "S" for seconds, "M" for minutes, "H" for hours, or "D" for days
         filterBool (bool) - apply filtering or just concatenate raw data
         flow_cal_file (str) - file containing datetimes and flow data for flow
             calibrations. This file must be in the same folder as the raw data
+        output_file_frequency (str) - describes how the output data is broken
+            up for memory management. Options are 'monthly','weekly','daily' or
+            'all'
         
-    Functions:
-    load_and_process
-    Load_to_HDF
-    save_ccn_to_hdf
-    read_ccn_csv
-    resample_timebase
-    DataQC
-    filter_uwy
-    filter_ccn_stat
-    flow_cal
-    get_unique_periods
-    get_week_label
-    get_day_label
-    get_month_label
-    get_year_label
-    
     '''
     # If no input given, show the docstring only
     if len(sys.argv[0:]) <= 1:
         print(main.__doc__)
         return
     
+    parser = argparse.ArgumentParser()
+    parser.add_argument("raw_path", help="path where raw data exists")
+    parser.add_argument("-o","--output_path", help="path where output data\
+                                files are written")
+    parser.add_argument("-ext","--output_file_extension", help="Extension of \
+                                the output filetype. Options include 'hdf', \
+                                'h5' or 'netcdf'", default='hdf')
+    parser.add_argument("-res","--output_time_resolution", help="time  \
+                                resolution of output data. Default 1 second",
+                                default='1S')
+    parser.add_argument("-q","--QCdata",help="Boolean specifying whether to \
+                                perform QC actions on data. Default false",
+                                default=False, type=bool)
+    parser.add_argument("--flow_cal_file", help="file containing datetimes and\
+                                flow data for flow calibrations. This file \
+                                must be in the same folder as the raw data.")
+    parser.add_argument("--output_file_frequency", help="describes how output \
+                                data is broken up for memory management. \
+                                Options are 'monthly','weekly','daily' or \
+                                'all'", default='all')
     
-    ccn_raw_data_path = sys.argv[0]
-    ccn_output_data_path = sys.argv[1]
-    output_time_resolution = sys.argv[2]
-    filterBool = sys.argv[3]
-    flow_cal_file = sys.argv[4]
+    args = parser.parse_args()
+    
+    print(args)
+    # Interpret the user input arguments
+    ccn_raw_data_path = args.raw_path
+    ccn_output_data_path = args.output_path
+    ccn_output_filetype = args.output_file_extension
+    output_time_resolution = args.output_time_resolution
+    QC = args.QCdata
+    flow_cal_file = args.flow_cal_file
+    output_file_frequency = args.output_file_frequency
     
     # Test that the inputs are the correct format 
     if not os.path.exists(ccn_raw_data_path):
         print('Raw data path does not exist. Exiting')    
         return
     
-    if not os.path.exists(ccn_output_data_path):
+    if (ccn_output_data_path is None) or (not os.path.exists(ccn_output_data_path)):
         ccn_output_data_path = create_temp_output_directory()
         print('Output data path does not exist. Creating new folder in:')
         print(ccn_output_data_path)
+    
+    assert ccn_output_filetype.lower() in ['netcdf','h5','hdf'], \
+        "output filetype invalid! Please use either 'netcdf', 'h5', or 'hdf'"
         
     if output_time_resolution not in ['--1S','--5S','--10S','--15S','--30S',
                                       '--1M','--2M','--5M','--10M','--15M',
@@ -80,21 +102,21 @@ def main():
                   no time resampling applied')
     output_time_resolution = output_time_resolution[2:] # remove the '--'
     
-    assert isinstance(filterBool,bool), 'filterBool must be a boolean value'
-    if filterBool:
-        filtOrRaw = 'filt'
-    else:
-        filtOrRaw = 'raw'
-        
-    assert os.path.isfile(flow_cal_file), "Can't find flow cal file!"
+    assert isinstance(QC,bool), 'QC must be a boolean value. Exiting'
+    
+    if flow_cal_file is not None:
+        assert os.path.isfile(flow_cal_file), "Can't find flow cal file!"
     
     
-    
+    # Loaded data and process
     LoadAndProcess(ccn_raw_data_path,
                    ccn_output_data_path,
+                   ccn_output_filetype,
                    timeResolution = output_time_resolution,
-                   filtOrRaw = filtOrRaw,
-                   flow_cal_file = flow_cal_file)
+                   concat_file_frequency = output_file_frequency,
+                   QC = QC,
+                   flow_cal_file = flow_cal_file
+                   )
     
     return
 
@@ -130,32 +152,43 @@ def load_flow_cals(flow_cal_file, CCN_raw_path):
     
     return flow_cal_df
     
+
 def LoadAndProcess(CCN_raw_path, 
-                   CCN_output_path = '',
+                   CCN_output_path = None,
+                   CCN_output_filetype = 'hdf',
                    filename_base = 'CCN', 
-                   filtOrRaw='filt', 
+                   QC_data = False, 
                    timeResolution='1S',
+                   concat_file_frequency = 'all',
                    mask_period_timestamp_list = [''],
                    CCN_flow_check_df = '',
                    CCN_flow_setpt = 500,
                    CCN_flow_polyDeg = 2,
-                   flow_cal_file = ''
+                   flow_cal_file = None
                    ):
+    
+    
     os.chdir(CCN_raw_path)
     
-    
-
-    # Check if any h5 file has been produced yet 
-    # (ie. the initial processing has occurred)
-    if not glob.glob('*.h5'):
-        Load_to_HDF(CCN_raw_path,filename_base)
+    if CCN_output_filetype == 'netcdf':
+        Load_to_NetCDF()
+    else:
+        Load_to_HDF(CCN_raw_path,
+                    CCN_output_path,
+                    output_h5_filename = filename_base,
+                    resample_timebase = timeResolution,
+                    concat_file_frequency = concat_file_frequency)
+        
         
     filename = filename_base+'_'+timeResolution+'.h5'
-    filename_1sec = filename_base+'_'+filtOrRaw+'.h5'
+    if QC:    
+        filename_1sec = filename_base+'_QC.h5'
+    else:
+        filename_1sec = filename_base+'_raw.h5'
     filename_raw = 'CCNC.h5'
 #
     
-    if filtOrRaw.lower() == 'filt':
+    if QC:
         if os.path.isfile(filename):
             ccn = pd.read_hdf(filename,key=filename_base)
             NeedsTimeResampling = False
@@ -187,7 +220,7 @@ def LoadAndProcess(CCN_raw_path,
         
         # Flow calibrations
         # Load flow_cal_file if its provided
-        if not (flow_cal_file == ''):
+        if flow_cal_file is not None:
             CCN_flow_check_df = load_flow_cals(flow_cal_file, CCN_raw_path)
         if not (CCN_flow_check_df == ''):
             ccn = flow_cal(ccn,CCN_flow_check_df,
@@ -216,57 +249,98 @@ def LoadAndProcess(CCN_raw_path,
         
     
     return ccn
-    
 
-    
-    
-def Load_to_HDF(DataPath, 
-				output_h5_filename = 'CCNC', 
-				resample_timebase = None, 
-				concat_file_frequency = 'all'
-				):
-    '''
-	To reload data from the h5 file
-    '''
-    os.chdir(DataPath)
-    
-    filelist = glob.glob('*.csv')
-    filelist.sort()
-    
-    filelist_df = pd.DataFrame(filelist, columns=['filenames'])
-    
-    if concat_file_frequency.lower() == 'monthly':
-        print('Concatenating to monthly files')
-        periods = get_unique_periods(filelist, concat_file_frequency)
-        filelist_df['id'] = get_month_label(filelist)
-   
-    elif concat_file_frequency.lower() == 'weekly':
-        print('Concatenating to weekly files')
-        periods = get_unique_periods(filelist, concat_file_frequency)
-        filelist_df['id'] = get_week_label(filelist)
-    
-    elif concat_file_frequency.lower() == 'daily':
-        print('Concatenating to daily files')
-        periods = get_unique_periods(filelist, concat_file_frequency)
-        filelist_df['id'] = get_day_label(filelist)
+def move_files(origin_pth, dest_pth, extension):
+    os.chdir(origin_pth)
         
-    elif concat_file_frequency.lower() == 'all':
-        # Continue as normal
-        print('Concatenating all files into a single HDF')
+    # Get list of files from source directory
+    files = glob.glob(extension)
     
+    # check destination path exists, if not, create it
+    if not os.path.exists(dest_pth):
+        os.makedirs(dest_pth)
+    for file in files:
+        os.system('move '+ file + ' ' + dest_pth)
+    return
+   
+def Load_to_NetCDF(
+                RawDataPath,
+                DestDataPath=None,
+                output_h5_filename = 'CCNC', 
+                resample_timebase = None, 
+                concat_file_frequency = 'all'
+                ):
+    ''' 
+    Need to write this
+    '''
+    return
+    
+    
+def Load_to_HDF(
+                RawDataPath,
+                DestDataPath=None,
+                output_h5_filename = 'CCNC', 
+                resample_timebase = None, 
+                concat_file_frequency = 'all'
+                ):
+    '''
+	Load data from CSV files, concatenate and write to h5 file
+    '''
+    if DestDataPath is None:
+        os.chdir(RawDataPath)
     else:
-        print("Cannot determine what frequency you want the output file")
+        os.chdir(DestDataPath)
     
-    
-    # Iterate through files
-    periods.sort()
-    for i in range(0, len(periods)):
-        output_h5_filename_ = output_h5_filename + '_' + str(periods[i])
-        filelist_ = list(filelist_df[
-                                filelist_df['id'] == periods[i]]['filenames'])
-
-        save_ccn_to_hdf(filelist_, output_h5_filename_, resample_timebase)
-    
+    if not glob.glob('*.h5'):
+        
+        os.chdir(RawDataPath)
+        filelist = glob.glob('*.csv')
+        filelist.sort()
+        
+        filelist_df = pd.DataFrame(filelist, columns=['filenames'])
+        
+        if concat_file_frequency.lower() == 'monthly':
+            print('Concatenating to monthly files')
+            periods = get_unique_periods(filelist, concat_file_frequency)
+            filelist_df['id'] = get_month_label(filelist)
+       
+        elif concat_file_frequency.lower() == 'weekly':
+            print('Concatenating to weekly files')
+            periods = get_unique_periods(filelist, concat_file_frequency)
+            filelist_df['id'] = get_week_label(filelist)
+        
+        elif concat_file_frequency.lower() == 'daily':
+            print('Concatenating to daily files')
+            periods = get_unique_periods(filelist, concat_file_frequency)
+            filelist_df['id'] = get_day_label(filelist)
+            
+        elif concat_file_frequency.lower() == 'all':
+            # Continue as normal
+            print('Concatenating all files into a single HDF')
+            periods = None
+            
+        
+        else:
+            print("Cannot determine what frequency you want the output file")
+        
+        
+        # Iterate through files
+        if periods is not None: # when output is being broken up
+            periods.sort()
+            for i in range(0, len(periods)):
+                output_h5_filename_ = output_h5_filename + '_' + str(periods[i])
+                filelist_ = list(filelist_df[
+                        filelist_df['id'] == periods[i]]['filenames'])
+        
+                save_ccn_to_hdf(filelist_, output_h5_filename_, resample_timebase)
+        else:
+            save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase)
+        
+    # If no destination path given, write files in raw data path, otherwise
+    # move to destination path
+    if DestDataPath is not None:
+        move_files(RawDataPath, DestDataPath, '.h5')
+        
     return None
 
 def get_unique_periods(filelist, frequency):
@@ -703,8 +777,20 @@ def get_month_label(filelist):
 def get_year_label(filelist):
     return [f[13:15] for f in filelist]
   
-   
+
     
 # if this script is run at the command line, run the main script   
 if __name__ == '__main__': 
 	main()
+    
+''' Testing script to run it in spyder for debugging ''' 
+LoadAndProcess('r:\\RV_Investigator\\in2016_v03\\voyage_specific\\ccnc\\',
+               concat_file_frequency = 'all')
+'''                   ccn_output_data_path,
+                   ccn_output_filetype,
+                   timeResolution = output_time_resolution,
+                   concat_file_frequency = output_file_frequency,
+                   filtOrRaw = filtOrRaw,
+                   flow_cal_file = flow_cal_file
+                   )
+            '''
