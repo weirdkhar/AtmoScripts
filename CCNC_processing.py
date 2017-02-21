@@ -977,6 +977,10 @@ def DataQC(CCN_data,
     
         # Concentration lower than 10 /cm3 (as per factory setting)
         CCNC_data.loc[CCNC_data['CCN Number Conc'] < 10] = np.nan
+                     
+        # Concentration higher than 5000/cm3, the column experiences water 
+        # vapor depletion and thus undercounts, see Latham & Nenes, AS&T, 2011
+        CCNC_data.loc[CCNC_data['CCN Number Conc'] > 5000] = np.nan
         
         # Flow ratio outside 10 +/- 0.4
         CCNC_data['Flow Ratio'] = \
