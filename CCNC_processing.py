@@ -120,9 +120,11 @@ def main():
     
 
     # Loaded data and process
-    LoadAndProcess(ccn_raw_data_path,
+#    LoadAndProcess(ccn_raw_data_path,
+    LoadAndProcessCCN(ccn_raw_data_path,
                    ccn_output_data_path,
-                   ccn_output_filetype,
+                   ccn_output_filename = 'CCN',
+                   ccn_output_filetype = ccn_output_filetype,
                    timeResolution = output_time_resolution,
                    concat_file_frequency = output_file_frequency,
                    QC = QC,
@@ -131,7 +133,16 @@ def main():
     
     return
 
-def LoadAndProcessCCN():
+def LoadAndProcessCCN(
+                    ccn_raw_data_path,
+                    ccn_output_data_path = None,
+                    ccn_output_filename = None,
+                    ccn_output_filetype = 'h5',
+                    output_time_resolution = '1S',
+                    concat_file_frequency = 'all',
+                    QC = False,
+                    flow_cal_file = None
+                   ):
     '''
     Loads CCNC data from raw csv files, concatenates, then saved to output 
     files of either hdf or netcdf format.
@@ -144,26 +155,73 @@ def LoadAndProcessCCN():
     If requested, it will perform exhaust removal (assuming its on the RVI)
     
     '''
-    # Load data from csv files
-    concatenate_from_csv()
+    if ccn_output_data_path is None:
+        ccn_output_data_path = ccn_raw_data_path
     
-    # QC data for internal parameters
-    ccn_data = DataQC(ccn_data)
-    save2file(ccn_data,'QC',ccn_output_filetype)
+    # Concatenate csv files
+    concatenate_from_csv(ccn_raw_data_path,
+                         ccn_output_data_path,
+                         ccn_output_filename,
+                         output_time_resolution,
+                         concat_file_frequency,
+                         ccn_output_filetype
+                         )
     
-    # Perform Flow calibrations if data is provided
-    ccn_data = flow_cal(ccn_data,flow_cal_file,raw_path)
-    save2file(ccn_data,'flowcal',ccn_output_filetype)
+    # Load data
+    ccn_data = load_ccn(ccn_output_data_path,ccn_output_filetype)
     
+    # QC data for internal parameters and for changes in SS
+    if QC:
+        ccn_data = DataQC(ccn_data)
+        save_as(ccn_data,ccn_output_data_path,'QC',ccn_output_filetype)
+    
+    # Perform flow calibration if data is provided
+    if flow_cal_file is not None:
+        ccn_data = flow_cal(ccn_data,flow_cal_file,ccn_raw_data_path)
+        save_as(ccn_data,ccn_output_data_path,'flowcal',ccn_output_filetype)
+    
+    # Calibrate supersaturation
+    ccn_data = ss_cal(ccn_data)
+    save_as(ccn_data,ccn_output_data_path,'sscal',ccn_output_filetype)
+    
+    # Separate into different supersaturations
+    ccn_data = ss_split(ccn_data)
+    save_as(ccn_data,ccn_output_data_path,'ss_split',ccn_output_filetype)
+        
     # Filter for logged events
     
-    save2file(ccn_data,'logfilt',ccn_output_filetype)
+    save_as(ccn_data,ccn_output_data_path,'logfilt',ccn_output_filetype)
         
     # Filter for exhaust
     
-    save2file(ccn_data,'exhaustfilt',ccn_output_filetype)
+    save_as(ccn_data,ccn_output_data_path,'exhaustfilt',ccn_output_filetype)
     
+    # Resample to hourly data
+    
+    save_as(ccn_data,ccn_output_data_path,'hourly',ccn_output_filetype)
     return
+
+
+def load_ccn(data_path, filetype):
+    ''' 
+    Loads data from concatenated data file.
+    '''
+    os.chdir(data_path)
+    # Get most recently updated file:
+    filelist = glob.glob('*.'+filetype)
+    fname = max(filelist, key=os.path.getctime)
+    if filetype in ['hdf','h5']:
+        data = pd.read_hdf(fname, key='CCN')
+    
+    elif filetype in ['netcdf','nc']:
+        # xkcd
+        data = None
+    
+    elif filetype == 'csv':
+        data = pd.read_csv(fname,skipinitialspace = True)  
+    
+    return data
+
 
 def concatenate_from_csv(
                     CCN_raw_path,
@@ -188,11 +246,11 @@ def concatenate_from_csv(
         
     return
 
-def save2file(
-        data,
-        filename_appendage,
-        filetype='hdf'
-        ):
+def save_as(data,
+            save_path,
+            filename_appendage = '',
+            filetype='hdf'
+            ):
     '''
     Saves data to file, reading the original filename, and appending informative
     text to the filename.
@@ -200,7 +258,92 @@ def save2file(
     CCN.h5 becomes CCN_QC.h5
     CCN.netcdf becomes CCN_QC_flowcal.netcdf
     '''
+    assert filetype in ['hdf','h5','netcdf','nc','csv'], "Don't recognise \
+                        filetype to save to. Please use hdf, h5, netcdf or csv"
+    assert save_path is not None, 'You must specify the directory where you \
+                        want to save!'
+    os.chdir(save_path)
+    
+    
+    if filetype in ['hdf','h5']:
+        fname = get_ccn_filenamebase('h5', filename_appendage)
+                
+        # Save data to file
+        data.to_hdf(fname, key='CCN')
+    
+    elif filetype in ['netcdf','nc']:
+        # Get the filename of the most recently created file
+        fname = get_ccn_filenamebase('nc', filename_appendage)
+        
+        # Save data to file
+        # xkcd
+        
+    elif filetype == 'csv':
+        fname = get_ccn_filenamebase('csv', filename_appendage)
+        
+        # Save data to file
+        data.to_csv(fname)
+        
     return
+
+def get_ccn_filenamebase(ext, appendage):
+    '''
+    Get's the filename of the most recently created file and produces the new
+    filename
+    '''
+    
+    filelist = glob.glob('*.'+ ext)
+    
+    if len(filelist) == 0:
+        return 'CCN_unknown' + appendage + '.' + ext
+    else:
+        # Get the filename of the most recently created file
+        fname_old = max(filelist, key=os.path.getctime).split('.')
+        
+        # if the version of the file is already there, overwrite
+        if appendage in fname_old[0]:
+            return fname_old[0] + '.' + fname_old[1]
+        else:
+            return fname_old[0] + '_' + appendage + '.' + fname_old[1]
+    
+
+
+def ss_split(data):
+    '''
+    Splits the data based on its supersaturation value and removes the 
+    transition periods when supersaturations haven't stabilised. 
+    '''
+    # Get a list of the supersaturations in the file:
+    ss_list = data['Current SS'].unique()
+        
+    d={} #Initialise
+    for ss in ss_list:
+        if not np.isnan(ss):
+            # Create a dictionary to store each separated SS
+            d['ccn_' + str(ss)] = data[data['Current SS'] == ss][[\
+                             'CCN Number Conc'\
+                             ]]
+    # Concatenate each df in the dictionary
+    split_data = pd.concat(d,axis=1)
+    
+    # Remove multi-indexing
+    split_data.columns = split_data.columns.get_level_values(0)
+    
+    return split_data
+
+def ss_transition_removal(data):
+    '''
+    removes data that hasn't stabilised its ss yet due to changing SS setpoint
+    '''
+    
+    return data
+
+def ss_cal(ccn_data):
+    '''
+    Calibrates the reported supersaturation level for perssure.
+    '''
+    #xkcd
+    return ccn_data
 
 def create_temp_output_directory():
     '''
@@ -316,7 +459,7 @@ def LoadAndProcess(CCN_raw_path,
     
     if NeedsTimeResampling:     
         #Resample to 5 second time base, then join with UWY dataset
-        ccn = resample_timebase(data = ccn, 
+        ccn = timebase_resampler(data = ccn, 
                                 variable = filename_base, 
                                 time_int=[timeResolution])   
         
@@ -346,7 +489,7 @@ def Load_to_NetCDF(
                 concat_file_frequency = 'all'
                 ):
     ''' 
-    Need to write this
+    xkcd Need to write this
     '''
     return
     
@@ -366,7 +509,11 @@ def Load_to_HDF(
     else:
         os.chdir(DestDataPath)
     
-    if not glob.glob('*.h5'):
+    if (output_h5_filename is None) or (output_h5_filename == ''):
+        output_h5_filename = 'CCN'
+    
+    
+    if not glob.glob('*.h5'): 
         
         os.chdir(RawDataPath)
         filelist = glob.glob('*.csv')
@@ -416,7 +563,7 @@ def Load_to_HDF(
     if DestDataPath is not None:
         move_files(RawDataPath, DestDataPath, '.h5')
         
-    return None
+    return 
 
 def get_unique_periods(filelist, frequency):
      # Extract all unique values in the filelist (do this using set )    
@@ -486,9 +633,9 @@ def save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase = None):
     atmoscripts.write_filelist_to_file(filelist, 'files_loaded.txt')
     
     if resample_timebase is not None:
-        resample_timebase(data)   
+        timebase_resampler(data, time_int = resample_timebase)   
         
-    return None
+    return
 
 def read_ccn_csv(filelist):
     
@@ -619,15 +766,19 @@ def read_ccn_csv(filelist):
     return data, fname_current
     
     
-def resample_timebase(
+def timebase_resampler(
                       data=0,
                       RawDataPath='',
                       input_h5_filename='',
                       variable='CCN',
                       time_int='default'
                       ):
-    ### Time resampling
-
+    ''' 
+    Time resampling
+    '''
+    if time_int == '1S':
+        print('No timebase resampling performed. Output base 1 second')
+        return # no resampling required!
     
     
     #if no data provided, try to load from file
@@ -730,7 +881,9 @@ def DataQC(CCN_data,
 #    # Concentration lower than 10 /cm3 (as per factory setting)
 #    #Data4CloserLook['check'].loc[CCNC_data['CCN Number Conc'] >= 10] = np.nan    
 #    ReviewData.loc[CCNC_data['CCN Number Conc'] < 10] = -999
-
+    
+    # Remove data for 3 minutes after each change in supersaturation.               
+    CCNC_data = ss_transition_removal(CCNC_data)
     
     ### Filter primary dataset
     with np.errstate(invalid = 'ignore'): # Ignore error warnings caused by 
@@ -775,16 +928,32 @@ def DataQC(CCN_data,
     
 
 
-def flow_cal(data, measured_flows_df, set_flow_rate, polydeg=2):
-    ''' Calibrates CPC_data for measured flow rates.
+def flow_cal(data, 
+             flow_cal_filename = None,
+             flow_cal_path = None,
+             measured_flows_df = None, 
+             set_flow_rate = 500, #ccm
+             polydeg=2):
+    ''' Calibrates CPC_data for measured flow rates. Data input can either be 
+    an already loaded dataframe, or directions to the csv file which contains
+    the correctly formatted data.
     Parameters:
      - data - dataframe of raw CPC data
+     - flow_cal_filename - str - filename of the flow cal csv data.
+     - flow_cal_path - str - path of the flow cal csv data
      - measured_flows_df - a dataframe of the times and measured flow rates 
          used for calibration. See CAPRICORN.py for an example
      - set_flow_rate - the flow rate that the instrument SHOULD be at.
      - polydeg - the degree of the polynomial to fit to the measured data and 
          correct with.
     '''
+    
+    # Load data from file if required:
+    if flow_cal_filename is not None:
+        # Assume we're already in the required directory if the path isn't 
+        # provided
+        measured_flows_df = load_flow_cals(flow_cal_filename, flow_cal_path)
+    
     
     # Convert dates to seconds since 1 Jan 2000
     x = (measured_flows_df.index - \
@@ -859,10 +1028,12 @@ if __name__ == '__main__':
 	main()
     
 ''' Testing script to run it in spyder for debugging ''' 
-LoadAndProcess('r:\\RV_Investigator\\in2016_v03\\voyage_specific\\ccnc\\',
-               concat_file_frequency = 'all')
-'''                   ccn_output_data_path,
-                   ccn_output_filetype,
+LoadAndProcessCCN('h:\\test_data\\',
+               concat_file_frequency = 'all',
+               QC = True)
+'''               ccn_output_data_path = 'r:\\RV_Investigator\\in2016_v03\\voyage_specific\\ccnc\\'
+               )
+   ccn_output_filetype,
                    timeResolution = output_time_resolution,
                    concat_file_frequency = output_file_frequency,
                    filtOrRaw = filtOrRaw,
