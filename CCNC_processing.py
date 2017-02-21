@@ -80,6 +80,12 @@ def main():
     parser.add_argument("-r","--reload_from_source", help="forces reloading\
                                 data from source csv files rather than loading\
                                 from concatenated data. Boolean", default=True)
+    parser.add_argument("--atmos_press", help="specify atmospheric pressure of \
+                        measurement location for supersaturation correction. ",
+                        default=1010)
+    parser.add_argument("--cal_press", help="specify atmospheric pressure of \
+                        calibration location for supersaturation correction. ",
+                        default=830)
     
     args = parser.parse_args()
     
@@ -93,6 +99,8 @@ def main():
     flow_cal_file = args.flow_cal_file
     output_file_frequency = args.output_file_frequency
     reload_from_source = args.reload_from_source
+    atmos_press = args.atmos_press
+    cal_press = args.cal_press
     
     # Test that the inputs are the correct format 
     if not os.path.exists(ccn_raw_data_path):
@@ -133,7 +141,9 @@ def main():
                    concat_file_frequency = output_file_frequency,
                    QC = QC,
                    flow_cal_file = flow_cal_file,
-                   reload_from_source = reload_from_source
+                   reload_from_source = reload_from_source,
+                   atmos_press = atmos_press,
+                   cal_press = cal_press
                    )
     
     return
@@ -147,7 +157,9 @@ def LoadAndProcessCCN(
                     concat_file_frequency = 'all',
                     QC = False,
                     flow_cal_file = None,
-                    reload_from_source = True
+                    reload_from_source = True,
+                    atmos_press = None,
+                    cal_press = None
                    ):
     '''
     Loads CCNC data from raw csv files, concatenates, then saved to output 
@@ -188,7 +200,7 @@ def LoadAndProcessCCN(
         save_as(ccn_data,ccn_output_data_path,'flowcal',ccn_output_filetype)
     
     # Calibrate supersaturation
-    ccn_data = ss_cal(ccn_data)
+    ccn_data = ss_cal(ccn_data, atmos_press, cal_press)
     save_as(ccn_data,ccn_output_data_path,'sscal',ccn_output_filetype)
     
     # Separate into different supersaturations
@@ -395,14 +407,26 @@ def ss_transition_removal(data):
     del data['ss_remove']
     return data
 
-def ss_cal(ccn_data):
+def ss_cal(ccn_data, atmos_press = 1010, cal_press = 830):
     '''
-    Calibrates the reported supersaturation level for perssure.
+    Calibrates the reported supersaturation level for pressure.
     '''
+    if atmos_press == None:
+        atmos_press = 1010
+        print("Used 1010 mbar as atmospheric pressure at measurement location \
+              for supersaturation calibration")
+    if cal_press == None:
+        cal_press = 830
+        print("Assumed most recent calibration for the instrument was done in \
+              Boulder and so I've used 830 mbar as calibration pressure for supersaturation calibration")
+        
+    ccn_data['Current SS'] = ccn_data['Current SS'] + \
+                             0.028 * (atmos_press - cal_press)/100
     
-    #xkcd
     return ccn_data
 
+
+    
 def create_temp_output_directory():
     '''
     Creates a default output directory when one isn't specified
