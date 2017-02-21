@@ -77,6 +77,9 @@ def main():
                                 data is broken up for memory management. \
                                 Options are 'monthly','weekly','daily' or \
                                 'all'", default='all')
+    parser.add_argument("-r","--reload_from_source", help="forces reloading\
+                                data from source csv files rather than loading\
+                                from concatenated data. Boolean", default=True)
     
     args = parser.parse_args()
     
@@ -89,6 +92,7 @@ def main():
     QC = args.QCdata
     flow_cal_file = args.flow_cal_file
     output_file_frequency = args.output_file_frequency
+    reload_from_source = args.reload_from_source
     
     # Test that the inputs are the correct format 
     if not os.path.exists(ccn_raw_data_path):
@@ -128,7 +132,8 @@ def main():
                    timeResolution = output_time_resolution,
                    concat_file_frequency = output_file_frequency,
                    QC = QC,
-                   flow_cal_file = flow_cal_file
+                   flow_cal_file = flow_cal_file,
+                   reload_from_source = reload_from_source
                    )
     
     return
@@ -141,7 +146,8 @@ def LoadAndProcessCCN(
                     output_time_resolution = '1S',
                     concat_file_frequency = 'all',
                     QC = False,
-                    flow_cal_file = None
+                    flow_cal_file = None,
+                    reload_from_source = True
                    ):
     '''
     Loads CCNC data from raw csv files, concatenates, then saved to output 
@@ -164,7 +170,8 @@ def LoadAndProcessCCN(
                          ccn_output_filename,
                          output_time_resolution,
                          concat_file_frequency,
-                         ccn_output_filetype
+                         ccn_output_filetype,
+                         reload_from_source
                          )
     
     # Load data
@@ -209,7 +216,7 @@ def load_ccn(data_path, filetype):
     os.chdir(data_path)
     # Get most recently updated file:
     filelist = glob.glob('*.'+filetype)
-    fname = max(filelist, key=os.path.getctime)
+    fname = min(filelist, key=os.path.getctime)
     if filetype in ['hdf','h5']:
         data = pd.read_hdf(fname, key='CCN')
     
@@ -229,23 +236,49 @@ def concatenate_from_csv(
                     output_h5_filename= 'CCN',
                     resample_timebase = '1S',
                     concat_file_frequency = 'all',
-                    CCN_output_filetype='hdf'                    
+                    CCN_output_filetype='hdf',
+                    reload_from_source = True
                     ):
     '''
     Loads all the data from the csv file and saves them in either netCDF or h5
     formatted data files.
     '''
+    os.chdir(CCN_raw_path)
+    
     if CCN_output_filetype == 'netcdf':
-        Load_to_NetCDF()
+        filelist_empty = check_filelist('.nc', reload_from_source)
+        if filelist_empty:
+            Load_to_NetCDF()
     else:
-        Load_to_HDF(CCN_raw_path,
-                    CCN_output_path,
-                    output_h5_filename = output_h5_filename,
-                    resample_timebase = resample_timebase,
-                    concat_file_frequency = concat_file_frequency)
-        
+        filelist_empty = check_filelist('.h5', reload_from_source)
+        if filelist_empty:
+            Load_to_HDF(CCN_raw_path,
+                        CCN_output_path,
+                        output_h5_filename = output_h5_filename,
+                        resample_timebase = resample_timebase,
+                        concat_file_frequency = concat_file_frequency)
     return
 
+def check_filelist(filetype, reload_from_source):
+    '''
+    Checks if previous files have been created. If not, then return true and 
+    create the new files. If so, and you've been asked to reload_from_source,
+    return true. Otherwise, return false and don't reload the files. 
+    '''
+    filelist = glob.glob('*'+filetype)
+    if len(filelist) > 0 and reload_from_source:
+        # Delete files and return
+        for file in filelist:
+            os.remove(file)
+        filelist_empty = True
+    elif len(filelist) == 0:
+        filelist_empty = True
+        
+    else:
+        filelist_empty = False
+    
+    return filelist_empty
+    
 def save_as(data,
             save_path,
             filename_appendage = '',
@@ -1030,7 +1063,8 @@ if __name__ == '__main__':
 ''' Testing script to run it in spyder for debugging ''' 
 LoadAndProcessCCN('h:\\test_data\\',
                concat_file_frequency = 'all',
-               QC = True)
+               QC = True,
+               reload_from_source = True)
 '''               ccn_output_data_path = 'r:\\RV_Investigator\\in2016_v03\\voyage_specific\\ccnc\\'
                )
    ccn_output_filetype,
