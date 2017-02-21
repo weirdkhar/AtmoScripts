@@ -183,7 +183,7 @@ def LoadAndProcessCCN(
         save_as(ccn_data,ccn_output_data_path,'QC',ccn_output_filetype)
     
     # Perform flow calibration if data is provided
-    if flow_cal_file is not None:
+    if flow_cal_file is not None: #xkcd Need to test!
         ccn_data = flow_cal(ccn_data,flow_cal_file,ccn_raw_data_path)
         save_as(ccn_data,ccn_output_data_path,'flowcal',ccn_output_filetype)
     
@@ -368,13 +368,38 @@ def ss_transition_removal(data):
     '''
     removes data that hasn't stabilised its ss yet due to changing SS setpoint
     '''
+    # Create empty boolean column in the dataframe
+    data['ss_remove'] = False
     
+    i = 1
+    while i < len(data):
+        # Find index of the change in SS
+        ss_prev = data['Current SS'][i-1]
+        ss_next = data['Current SS'][i]
+        if (ss_prev != ss_next) & (not np.isnan(ss_prev)):
+            # Find timestamp of change
+            timestamp0 = data.index[i]
+            # Find timestamp of end of transition - set to n minutes after 
+            # change in set point
+            timestamp1= timestamp0+ datetime.timedelta(minutes = 3)
+            # Set data within the transition range to nan
+            data[(data.index >= timestamp0) & (data.index < timestamp1)] = np.nan
+            
+            # Start checking again from the end of the removed data
+            i = data.index.get_loc(timestamp1)+1
+        else:
+            i = i+1
+        
+    
+    # delete the temporary flag column
+    del data['ss_remove']
     return data
 
 def ss_cal(ccn_data):
     '''
     Calibrates the reported supersaturation level for perssure.
     '''
+    
     #xkcd
     return ccn_data
 
@@ -932,8 +957,8 @@ def DataQC(CCN_data,
         # Flow ratio outside 10 +/- 0.4
         CCNC_data['Flow Ratio'] = \
                         CCNC_data['Sheath Flow'] / CCNC_data['Sample Flow']
-        CCNC_data.loc[CCNC_data['Flow Ratio'] > (FlowRatio + 1)]= np.nan
-        CCNC_data.loc[CCNC_data['Flow Ratio'] < (FlowRatio - 1)]= np.nan
+        CCNC_data.loc[CCNC_data['Flow Ratio'] > (FlowRatio + 2)]= np.nan
+        CCNC_data.loc[CCNC_data['Flow Ratio'] < (FlowRatio - 2)]= np.nan
         
         # Irrelevant SuperSaturation values
         CCNC_data.loc[CCNC_data['Current SS'] < 0] = np.nan
@@ -1064,7 +1089,7 @@ if __name__ == '__main__':
 LoadAndProcessCCN('h:\\test_data\\',
                concat_file_frequency = 'all',
                QC = True,
-               reload_from_source = True)
+               reload_from_source = False)
 '''               ccn_output_data_path = 'r:\\RV_Investigator\\in2016_v03\\voyage_specific\\ccnc\\'
                )
    ccn_output_filetype,
