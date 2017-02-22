@@ -86,6 +86,9 @@ def main():
     parser.add_argument("--cal_press", help="specify atmospheric pressure of \
                         calibration location for supersaturation correction. ",
                         default=830)
+    parser.add_argument("--log_filt_file", help="file containing datetimes for\
+                        removal. This file must be in the same folder as the \
+                        raw data.")
     
     args = parser.parse_args()
     
@@ -101,6 +104,7 @@ def main():
     reload_from_source = args.reload_from_source
     atmos_press = args.atmos_press
     cal_press = args.cal_press
+    log_filt_file = args.log_filt_file
     
     # Test that the inputs are the correct format 
     if not os.path.exists(ccn_raw_data_path):
@@ -141,6 +145,7 @@ def main():
                    concat_file_frequency = output_file_frequency,
                    QC = QC,
                    flow_cal_file = flow_cal_file,
+                   log_filt_file = log_filt_file,
                    reload_from_source = reload_from_source,
                    atmos_press = atmos_press,
                    cal_press = cal_press
@@ -157,6 +162,7 @@ def LoadAndProcessCCN(
                     concat_file_frequency = 'all',
                     QC = False,
                     flow_cal_file = None,
+                    log_filt_file = None,
                     reload_from_source = True,
                     atmos_press = None,
                     cal_press = None
@@ -203,23 +209,28 @@ def LoadAndProcessCCN(
     ccn_data = ss_cal(ccn_data, atmos_press, cal_press)
     save_as(ccn_data,ccn_output_data_path,'sscal',ccn_output_filetype)
     
+    # Correct for inlet losses #xkcd
+#    ccn_data = inlet_corrections(ccn_data, IE)
+#    save_as(ccn_data,ccn_output_data_path,'IE',ccn_output_filetype)
+    
     # Separate into different supersaturations
     ccn_data = ss_split(ccn_data)
     save_as(ccn_data,ccn_output_data_path,'ss_split',ccn_output_filetype)
         
     # Filter for logged events
-    
+    ccn_data = atmoscripts.log_filter(ccn_data,ccn_raw_data_path,log_filt_file)
     save_as(ccn_data,ccn_output_data_path,'logfilt',ccn_output_filetype)
         
     # Filter for exhaust
     
     save_as(ccn_data,ccn_output_data_path,'exhaustfilt',ccn_output_filetype)
     
-    # Resample to hourly data
+    # Resample to hourly data and calculate uncertainties
     
     save_as(ccn_data,ccn_output_data_path,'hourly',ccn_output_filetype)
+    
+    
     return
-
 
 def load_ccn(data_path, filetype):
     ''' 
@@ -240,7 +251,6 @@ def load_ccn(data_path, filetype):
         data = pd.read_csv(fname,skipinitialspace = True)  
     
     return data
-
 
 def concatenate_from_csv(
                     CCN_raw_path,
@@ -351,8 +361,6 @@ def get_ccn_filenamebase(ext, appendage):
         else:
             return fname_old[0] + '_' + appendage + '.' + fname_old[1]
     
-
-
 def ss_split(data):
     '''
     Splits the data based on its supersaturation value and removes the 
@@ -425,8 +433,6 @@ def ss_cal(ccn_data, atmos_press = 1010, cal_press = 830):
     
     return ccn_data
 
-
-    
 def create_temp_output_directory():
     '''
     Creates a default output directory when one isn't specified
@@ -571,10 +577,9 @@ def Load_to_NetCDF(
                 concat_file_frequency = 'all'
                 ):
     ''' 
-    xkcd Need to write this
+    xkcd Need to write this - CHECK STATUS OF ATMOSCRIPTS FUNCTION THAT DOES THIS
     '''
     return
-    
     
 def Load_to_HDF(
                 RawDataPath,
@@ -847,7 +852,6 @@ def read_ccn_csv(filelist):
         
     return data, fname_current
     
-    
 def timebase_resampler(
                       data=0,
                       RawDataPath='',
@@ -936,9 +940,6 @@ def timebase_resampler(
     
     return data_resamp
     
-    
-    
-    
 def DataQC(CCN_data, 
            FlowRatio=10.0,
            T1diffLim=0.25,
@@ -1011,8 +1012,6 @@ def DataQC(CCN_data,
                           CCNC_data['T OPC']) > 1]= np.nan 
     
     return CCNC_data#, ReviewData)
-    
-
 
 def flow_cal(data, 
              flow_cal_filename = None,
@@ -1053,8 +1052,6 @@ def flow_cal(data,
     #plt.plot(x,y,'.',xp,p(xp),'--')
     
     return data
-
-    
     
 def filter_uwy(uwy_merge_data,
                uwy_path):
@@ -1068,8 +1065,6 @@ def filter_uwy(uwy_merge_data,
     uwy_merge_data.loc[pd.isnull(uwy_merge_data['mask'])] = np.nan
 
     return uwy_merge_data
-
-
     
 def filter_ccn_stat(data, std_lim = 150, removeData = False):
     if removeData:
@@ -1077,8 +1072,6 @@ def filter_ccn_stat(data, std_lim = 150, removeData = False):
     else:
         data.loc[data['ccn_std'] > std_lim,'ccn_std_mask'] = np.nan
     return data
-
-
     
 def get_week_label(filelist):
     # Extract the week number of each dates in the filelist
@@ -1091,18 +1084,12 @@ def get_week_label(filelist):
     #week_label = ['_wk' + str(s) for s in list(weeknum)]
     week_label = [x+'_wk'+y for x,y in zip(year,weeknum)]
     return week_label
-
-
     
 def get_day_label(filelist):
     return [f[13:19] for f in filelist]
-
-    
     
 def get_month_label(filelist):
     return [f[13:17] for f in filelist]
-    
-    
     
 def get_year_label(filelist):
     return [f[13:15] for f in filelist]
@@ -1117,7 +1104,8 @@ if __name__ == '__main__':
 LoadAndProcessCCN('h:\\test_data\\',
                concat_file_frequency = 'all',
                QC = True,
-               reload_from_source = False)
+               reload_from_source = False,
+               log_filt_file = 'log_filt.csv' )
 '''               ccn_output_data_path = 'r:\\RV_Investigator\\in2016_v03\\voyage_specific\\ccnc\\'
                )
    ccn_output_filetype,
