@@ -152,6 +152,19 @@ def load_flow_cals(flow_cal_file, CCN_raw_path):
     
     return flow_cal_df
     
+def LoadAndQC():
+    '''
+    Loads CCNC data from raw csv files, concatenates, then saved to output files
+    of either hdf or netcdf format. Data can then be quality controlled using
+    parameters output by the instrument. If a file containing flow calibration
+    values is provided, it will do a flow calibration too.
+    '''
+    return
+
+
+
+
+
 
 def LoadAndProcess(CCN_raw_path, 
                    CCN_output_path = None,
