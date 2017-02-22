@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-A collection of useful function for atmospheric sciences
+A collection of useful functions for atmospheric sciences
 A complement to atmosplots
 
 Written by Ruhi Humphries, 2016
@@ -15,6 +15,41 @@ import os
 # A function to write a dataset to a NetCDF file
 # Developed utilising info from http://schubert.atmos.colostate.edu/~cslocum/netcdf_example.html
 # and http://salishsea-meopar-tools.readthedocs.io/en/latest/netcdf4/
+
+def log_filter(data, raw_data_path, log_filename):
+    '''
+    Function to remove data based on the logged events. The log must be
+    formatted as a csv file with the first and second columns as the 
+    beginning and end of the data removal period. Additional data (e.g.
+    a 3rd column containing a description of why the period is being
+    removed) is ignored. Timestamps must be formatted as:
+         yyyy-mm-dd HH:SS:MM
+    '''
+    os.chdir(raw_data_path)
+    # Load file - checking whether there is a header or not
+    log_mask = pd.read_csv(log_filename)
+    try: # check if the loaded header is actually a date
+        pd.to_datetime(log_mask.columns[0])
+        # if it is, reload the data using the header option
+        log_mask = pd.read_csv(log_filename, 
+                               header = None, 
+                               names = ['start','end', '']
+                               )
+    except ValueError:
+        # rename first two columns
+        log_mask.columns = ['start','end','']
+            
+    # Parse timestamps
+    log_mask.iloc[:,0] = pd.to_datetime(log_mask.iloc[:,0])
+    log_mask.iloc[:,1] = pd.to_datetime(log_mask.iloc[:,1])
+    # work through mask periods and set values to nan
+    for i in range(0,len(log_mask)):
+        data.loc[(data.index >= log_mask.iloc[i,0]) & \
+                 (data.index < log_mask.iloc[i,1])] \
+                 = np.nan
+        
+    return data
+
 
 def write_netcdf(data,
                  # Variable attributes
