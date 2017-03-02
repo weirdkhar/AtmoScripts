@@ -7,6 +7,7 @@ Written by Ruhi Humphries
 Useful documentation: 
     http://www.tkdocs.com/tutorial/widgets.html 
     http://pyinmyeye.blogspot.com.au/2012/08/tkinter-combobox-demo.html
+    http://www.python-course.eu/tkinter_layout_management.php
 '''
 import os
 import tkinter as tk
@@ -139,7 +140,7 @@ class ccn_processing(ttk.Frame):
         lb1.pack(pady=5,padx=10,side=LEFT)
         lb1.place(rely=0.25, relx=0.02)
         cb1 = ttk.Combobox(f2, values=filetypes, state='readonly', width = 10)
-        cb1.current(1)  # set selection
+        cb1.current(0)  # set selection
         cb1.pack(pady=5, padx=10, side=LEFT)
         cb1.place(rely=0.25, relx=0.375)
         
@@ -147,7 +148,8 @@ class ccn_processing(ttk.Frame):
         f21 = ttk.LabelFrame(f2,text='Output time resolution')
         f21.pack(pady=5,padx=10, fill='x')
         f21.place(rely=0.4, relx=0.02, relwidth=0.96, relheight=0.58)
-        
+
+        # Declare checkbox variables
         output_1s = IntVar
         output_5s = IntVar
         output_10s = IntVar
@@ -164,6 +166,7 @@ class ccn_processing(ttk.Frame):
         output_12h = IntVar
         output_1d = IntVar
         
+        # Create checkboxes
         cb_1s = tk.Checkbutton(f21, text="1 second", variable=output_1s)
         cb_5s = tk.Checkbutton(f21, text="5 seconds", variable=output_5s)
         cb_10s = tk.Checkbutton(f21, text="10 seconds", variable=output_10s)
@@ -180,8 +183,9 @@ class ccn_processing(ttk.Frame):
         cb_12h = tk.Checkbutton(f21, text="12 hours", variable=output_12h)
         cb_1d = tk.Checkbutton(f21, text="1 day", variable=output_1d)		
         
-#        cb_1s.select(value=1) # Default value is checked.
+        cb_1s.select() # Select default value as checked
         
+        # Position
         cb_1s.pack(pady=5,padx=10)
         cb_5s.pack(pady=5,padx=10)
         cb_10s.pack(pady=5,padx=10)
@@ -199,7 +203,6 @@ class ccn_processing(ttk.Frame):
         cb_1d.pack(pady=5,padx=10)
         
         cb_1s.place(relx=0.02, rely=0.02)
-        
         cb_5s.place(relx=0.02, rely=0.22)
         cb_10s.place(relx=0.02,rely=0.42)
         cb_15s.place(relx=0.02,rely=0.62)
@@ -226,12 +229,16 @@ class ccn_processing(ttk.Frame):
         f31 = ttk.LabelFrame(f3, text='Data masking/removal')
         f31.pack(pady=5,padx=10, fill='x')
         qc = IntVar
-        cb_qc = ttk.Checkbutton(f31, 
+        #qc.set(value=1)
+        cb_qc = tk.Checkbutton(f31, 
                                text="QC for internal parameters", 
                                variable=qc)
+        cb_qc.select()
         cb_qc.pack(pady=5,padx=10)
         
-        lb2 = Label(f31,text='Select file with mask events (optional)').pack(pady=5,padx=10)
+        lb2 = Label(f31,
+                    text='Select file with mask events (optional)'
+                    ).pack(pady=5,padx=10)
         tb2 = Entry(f31)
         tb2.pack(pady=5,padx=10, fill='x')
         b3 = tk.Button(f31,
