@@ -59,6 +59,7 @@ class ccn_processing(ttk.Frame):
         ttk.Frame.__init__(self, name=name)
         self.pack(expand=Y, fill=BOTH)
         self.master.title('DMT CCN Processing')
+        self.master.geometry("880x560")
         self.isapp = isapp
         self._build_widgets()
         
@@ -67,27 +68,18 @@ class ccn_processing(ttk.Frame):
         mainFrame = Frame(self)
         mainFrame.pack(side=TOP, fill=BOTH, expand=Y)
         
+        
         self._create_input_frame()
         self._create_output_frame()
         self._create_processing_frame()
         
-#        w = PanedWindow()
-#        w.pack(fill=BOTH, expand=1)
-        
-#        w_L = PanedWindow(w, orient=VERTICAL)
-#        w_L.add(f1)
-#        w_L.add(f2)        
-#        w.add(w_L)
-        
-#        w.add(f3)
-
         f1.pack(in_=mainFrame, side=TOP, pady=5, padx=10)
         f2.pack(in_=mainFrame, side=TOP, pady=5, padx=10)
         f3.pack(in_=mainFrame, side=TOP, pady=5, padx=10)
-#        f1.place(anchor=NW)
-#        f2.place(anchor=SW)
-#        f3.place(anchor=E)
-         
+        f1.place(relx=0.01,rely=0.01,relheight=0.49,relwidth=0.49)
+        f2.place(relx=0.01,rely=0.5,relheight=0.5,relwidth=0.49)
+        f3.place(relx=0.51,rely=0.01,relheight=1,relwidth=0.49)
+        
     def _create_input_frame(self):
         global f1
         f1 = ttk.LabelFrame(mainFrame, text = 'Input data')
