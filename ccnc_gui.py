@@ -14,128 +14,11 @@ import tkinter as tk
 from tkinter import *
 from tkinter import filedialog
 from tkinter import ttk
-#global files_raw, default_output_path
 
 
 
 class ccn_processing(ttk.Frame):
     
-##-----------------------------------------------------------
-## GUI Functionality
-##-----------------------------------------------------------        
-    def open_file_dialog(self):
-        '''
-        Prompts user to select input files
-        '''
-        files_raw = filedialog.askopenfilenames()
-        output_path_default = os.path.dirname(files_raw[0])
-        
-        for i in range(0, len(files_raw)):
-            lb_openFiles.insert(i,files_raw[i])
-        if output_path is None:
-            t_outputPath.insert(END,output_path_default)
-            output_path = output_path_default
-    
-    def browse_for_file(self):
-        '''
-        Prompts user to select input file
-        '''
-        file = filedialog.askopenfilename()
-        return file
-    
-    def open_path_dialog(self):
-        '''
-        Selecting output path, if not chosen, use the input directory
-        '''
-        global output_path
-        output_path = filedialog.askdirectory()
-        t_outputPath.delete(1.0,END)
-        t_outputPath.insert(END,output_path)
-        
-        
-    def reload_from_source(self):
-        '''
-        allows user to force reload from source files
-        '''        
-    
-    def load_and_process(self):
-        '''
-        Once all parameters have been chosen, checks all the input values and
-        begins the processing.
-        '''
-        # Check input variables
-        
-        # Open new window showing status with the option to cancel execution 
-        # and disable input window
-        self._build_status_window()
-        # Call 
-
-    def interupt(self):
-        '''
-        Stops the execution 
-        '''
-        self.interupt_check = tk.Toplevel()
-        self.interupt_check.title('Cancel processing')
-        
-        l1 = tk.Label(self.interupt_check,
-                      text='Are you sure you want to exit?') 
-        l2 = tk.Label(self.interupt_check,
-                      text="""This will exit the program and you will have 
-to launch the program again"""
-                      )
-        l1.pack()
-        l2.pack()
-        
-#        w = tk.PanedWindow(orient=HORIZONTAL)
-        
-        bt_y = Button(self.interupt_check,
-                      text="Yes",
-                      command=self.interupt_yes,
-                      bg='red',
-                      fg='white')
-#        bt_y.pack()
-#        w.add(bt_y)
-        bt_n = Button(self.interupt_check,
-                      text="No",
-                      command=self.interupt_n,
-                      bg='green',
-                      fg='white')
-#        w.add(bt_n)
-        
-#        w.pack()
-        bt_y.pack(side=LEFT,padx=60,pady=5)
-        bt_n.pack(side=LEFT,padx=60,pady=5)
-#        
-#        #l.place(rely = 0.05)
-#        bt_y.place(relx = 0.2, rely = 0.75)
-#        bt_n.place(relx = 0.7, rely = 0.75)
-#        
-        
-    def interupt_yes(self):
-        sys.exit(0)
-        
-    def interupt_no(self):
-        self.interupt_check.destroy()
-##-----------------------------------------------------------
-## Processing status window
-##-----------------------------------------------------------
-    def _build_status_window(self):
-        top = tk.Toplevel()
-        top.title('CCN Processing Status')
-        top.geometry("400x500")
-        
-        lb_status = tk.Listbox(top)
-        lb_status.pack(pady=5, fill='both')
-        lb_status.place(relx=0.01,rely=0.01,relheight=0.9,relwidth=0.98)
-        
-        bt_interupt = Button(top,
-                             text='Interupt', 
-                             command=self.interupt,
-                             bg='red',
-                             fg='white'
-                             )
-        bt_interupt.pack(pady=10, side=BOTTOM)
-
 
 ##-----------------------------------------------------------
 ## GUI Widgets
@@ -391,7 +274,8 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
         tb_measPress.pack(pady=5,padx=10, side=LEFT)
         lb_units2.pack(pady=5,padx=10, side= RIGHT)
         
-
+        
+        # Create go button!
         bt_go = Button(f3,
                        text='GO!',
                        command=self.load_and_process,
@@ -401,6 +285,144 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
                        width = 15)
         bt_go.pack(side=BOTTOM)
         bt_go.place(rely=0.82, relx=0.25)
+
+##-----------------------------------------------------------
+## Variable check window
+##-----------------------------------------------------------
+    def _alert_bad_input(self, message='Nothing to see here...'):
+        self.top = tk.Toplevel()
+        self.top.title('Bad input!')
+        txt = tk.Message(self.top, text=message)
+        txt.pack()
+        
+        bt_ok = tk.Button(self.top,
+                          text="OK",
+                          command=self.dismiss
+                          )
+        bt_ok.pack()
+        
+    def dismiss(self):
+        self.top.destroy()
+
+
+##-----------------------------------------------------------
+## Processing status window
+##-----------------------------------------------------------
+    def _build_status_window(self):
+        top = tk.Toplevel()
+        top.title('CCN Processing Status')
+        top.geometry("400x500")
+        
+        lb_status = tk.Listbox(top)
+        lb_status.pack(pady=5, fill='both')
+        lb_status.place(relx=0.01,rely=0.01,relheight=0.9,relwidth=0.98)
+        
+        bt_interupt = Button(top,
+                             text='Interupt', 
+                             command=self.interupt,
+                             bg='red',
+                             fg='white'
+                             )
+        bt_interupt.pack(pady=10, side=BOTTOM)
+
+    def interupt(self):
+        '''
+        Stops the execution 
+        '''
+        self.interupt_check = tk.Toplevel()
+        self.interupt_check.title('Cancel processing')
+        
+        l1 = tk.Label(self.interupt_check,
+                      text='Are you sure you want to exit?') 
+        l2 = tk.Label(self.interupt_check,
+                      text="""This will exit the program and you will have 
+to launch the program again"""
+                      )
+        l1.pack()
+        l2.pack()
+        
+        bt_y = Button(self.interupt_check,
+                      text="Yes",
+                      command=self.interupt_yes,
+                      bg='red',
+                      fg='white')
+        bt_n = Button(self.interupt_check,
+                      text="No",
+                      command=self.interupt_n,
+                      bg='green',
+                      fg='white')
+        bt_y.pack(side=LEFT,padx=60,pady=5)
+        bt_n.pack(side=LEFT,padx=60,pady=5)
+        
+        
+    def interupt_yes(self):
+        sys.exit(0)
+        
+    def interupt_no(self):
+        self.interupt_check.destroy()
+
+##-----------------------------------------------------------
+## GUI Functionality
+##-----------------------------------------------------------        
+    def open_file_dialog(self):
+        '''
+        Prompts user to select input files
+        '''
+        global output_path
+        files_raw = filedialog.askopenfilenames()
+        output_path_default = os.path.dirname(files_raw[0])
+        
+        for i in range(0, len(files_raw)):
+            lb_openFiles.insert(i,files_raw[i])
+        try:
+            output_path
+        except NameError:
+            t_outputPath.insert(END,output_path_default)
+            output_path = output_path_default
+        
+        #if output_path is None:
+            
     
+    def browse_for_file(self):
+        '''
+        Prompts user to select input file
+        '''
+        file = filedialog.askopenfilename()
+        return file
+    
+    def open_path_dialog(self):
+        '''
+        Selecting output path, if not chosen, use the input directory
+        '''
+        global output_path
+        output_path = filedialog.askdirectory()
+        t_outputPath.delete(1.0,END)
+        t_outputPath.insert(END,output_path)
+        
+        
+    
+    def load_and_process(self):
+        '''
+        Once all parameters have been chosen, checks all the input values and
+        begins the processing.
+        '''
+        # Initialise
+        msg = 'There is an error with your input:'
+        # Check input variables
+        if files_raw is None:
+            msg = msg + '\n Please select raw input files'
+        
+        
+        if msg != 'Please check ':
+            self._alert_bad_input(msg)
+            return
+        
+        # Open new window showing status with the option to cancel execution 
+        # and disable input window
+        self._build_status_window()
+        
+        # Call processing function
+        
+        
 if __name__ == '__main__':
     ccn_processing().mainloop()
