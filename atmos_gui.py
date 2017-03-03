@@ -14,13 +14,15 @@ import tkinter as tk
 from tkinter import *
 from tkinter import filedialog
 from tkinter import ttk
-global files_raw, default_output_path
+#global files_raw, default_output_path
 
 
 
 class ccn_processing(ttk.Frame):
     
-        
+##-----------------------------------------------------------
+## GUI Functionality
+##-----------------------------------------------------------        
     def open_file_dialog(self):
         '''
         Prompts user to select input files
@@ -41,7 +43,7 @@ class ccn_processing(ttk.Frame):
         file = filedialog.askopenfilename()
         return file
     
-    def open_path_dialog():
+    def open_path_dialog(self):
         '''
         Selecting output path, if not chosen, use the input directory
         '''
@@ -51,11 +53,93 @@ class ccn_processing(ttk.Frame):
         t_outputPath.insert(END,output_path)
         
         
-    def reload_from_source():
+    def reload_from_source(self):
         '''
         allows user to force reload from source files
         '''        
-            
+    
+    def load_and_process(self):
+        '''
+        Once all parameters have been chosen, checks all the input values and
+        begins the processing.
+        '''
+        # Check input variables
+        
+        # Open new window showing status with the option to cancel execution 
+        # and disable input window
+        self._build_status_window()
+        # Call 
+
+    def interupt(self):
+        '''
+        Stops the execution 
+        '''
+        self.interupt_check = tk.Toplevel()
+        self.interupt_check.title('Cancel processing')
+        
+        l1 = tk.Label(self.interupt_check,
+                      text='Are you sure you want to exit?') 
+        l2 = tk.Label(self.interupt_check,
+                      text="""This will exit the program and you will have 
+to launch the program again"""
+                      )
+        l1.pack()
+        l2.pack()
+        
+#        w = tk.PanedWindow(orient=HORIZONTAL)
+        
+        bt_y = Button(self.interupt_check,
+                      text="Yes",
+                      command=self.interupt_yes,
+                      bg='red',
+                      fg='white')
+#        bt_y.pack()
+#        w.add(bt_y)
+        bt_n = Button(self.interupt_check,
+                      text="No",
+                      command=self.interupt_n,
+                      bg='green',
+                      fg='white')
+#        w.add(bt_n)
+        
+#        w.pack()
+        bt_y.pack(side=LEFT,padx=60,pady=5)
+        bt_n.pack(side=LEFT,padx=60,pady=5)
+#        
+#        #l.place(rely = 0.05)
+#        bt_y.place(relx = 0.2, rely = 0.75)
+#        bt_n.place(relx = 0.7, rely = 0.75)
+#        
+        
+    def interupt_yes(self):
+        sys.exit(0)
+        
+    def interupt_no(self):
+        self.interupt_check.destroy()
+##-----------------------------------------------------------
+## Processing status window
+##-----------------------------------------------------------
+    def _build_status_window(self):
+        top = tk.Toplevel()
+        top.title('CCN Processing Status')
+        top.geometry("400x500")
+        
+        lb_status = tk.Listbox(top)
+        lb_status.pack(pady=5, fill='both')
+        lb_status.place(relx=0.01,rely=0.01,relheight=0.9,relwidth=0.98)
+        
+        bt_interupt = Button(top,
+                             text='Interupt', 
+                             command=self.interupt,
+                             bg='red',
+                             fg='white'
+                             )
+        bt_interupt.pack(pady=10, side=BOTTOM)
+
+
+##-----------------------------------------------------------
+## GUI Widgets
+##-----------------------------------------------------------
     def __init__(self, isapp = True, name = 'ccnprocessing'):
         ttk.Frame.__init__(self, name=name)
         self.pack(expand=Y, fill=BOTH)
@@ -77,8 +161,8 @@ class ccn_processing(ttk.Frame):
         f1.pack(in_=mainFrame, side=TOP, pady=5, padx=10)
         f2.pack(in_=mainFrame, side=TOP, pady=5, padx=10)
         f3.pack(in_=mainFrame, side=TOP, pady=5, padx=10)
-        f1.place(relx=0.01,rely=0.01,relheight=0.49,relwidth=0.49)
-        f2.place(relx=0.01,rely=0.5,relheight=0.5,relwidth=0.49)
+        f1.place(relx=0.01,rely=0.01,relheight=0.39,relwidth=0.49)
+        f2.place(relx=0.01,rely=0.4,relheight=0.6,relwidth=0.49)
         f3.place(relx=0.51,rely=0.01,relheight=1,relwidth=0.49)
         
     def _create_input_frame(self):
@@ -135,19 +219,30 @@ class ccn_processing(ttk.Frame):
         
         # Create output filetype combobox
         filetypes = ['netcdf','hdf','csv']
-        lb1 = ttk.Label(f2, text = 'Select output filetype'
-                        )
+        lb1 = ttk.Label(f2, text = 'Select output filetype')
         lb1.pack(pady=5,padx=10,side=LEFT)
-        lb1.place(rely=0.25, relx=0.02)
+        lb1.place(rely=0.16, relx=0.02)
+        
         cb1 = ttk.Combobox(f2, values=filetypes, state='readonly', width = 10)
         cb1.current(0)  # set selection
         cb1.pack(pady=5, padx=10, side=LEFT)
-        cb1.place(rely=0.25, relx=0.375)
+        cb1.place(rely=0.16, relx=0.375)
+        
+        # Create output file frequency combobox
+        file_freq=['Single file','Daily files','Weekly files','Monthly files']
+        lb2 = tk.Label(f2, text = 'Select output frequency')
+        lb2.pack(pady=5,padx=10,side=LEFT)
+        lb2.place(rely=0.26, relx=0.02)
+        
+        cb2 = ttk.Combobox(f2, values=file_freq, state='readonly', width = 15)
+        cb2.current(0)  # set selection
+        cb2.pack(pady=5, padx=10, side=LEFT)
+        cb2.place(rely=0.26, relx=0.375)
         
         # Create output time resolution options
         f21 = ttk.LabelFrame(f2,text='Output time resolution')
         f21.pack(pady=5,padx=10, fill='x')
-        f21.place(rely=0.4, relx=0.02, relwidth=0.96, relheight=0.58)
+        f21.place(rely=0.36, relx=0.02, relwidth=0.96, relheight=0.58)
 
         # Declare checkbox variables
         output_1s = IntVar
@@ -221,6 +316,7 @@ class ccn_processing(ttk.Frame):
         cb_1d.place(relx=0.67, rely=0.82)
         
         
+        
     def _create_processing_frame(self):
         global f3    
         f3 = ttk.LabelFrame(mainFrame, text = 'Processing options')
@@ -236,15 +332,16 @@ class ccn_processing(ttk.Frame):
         cb_qc.select()
         cb_qc.pack(pady=5,padx=10)
         
-        lb2 = Label(f31,
+        f311 = LabelFrame(f31,
                     text='Select file with mask events (optional)'
-                    ).pack(pady=5,padx=10)
-        tb2 = Entry(f31)
-        tb2.pack(pady=5,padx=10, fill='x')
-        b3 = tk.Button(f31,
+                    )
+        f311.pack(pady=5,padx=10, fill='x')
+        tb2 = Entry(f311, width=47)
+        tb2.pack(pady=5,padx=10, fill='x', side=LEFT)
+        b3 = tk.Button(f311,
                          text = "Browse",
                          command = self.browse_for_file
-                         ).pack(pady=5,padx=10)
+                         ).pack(pady=5,padx=10, side=LEFT)
         
         
         f32 = ttk.LabelFrame(f3, text='Data calibration')
@@ -254,14 +351,14 @@ class ccn_processing(ttk.Frame):
         f321.pack(pady=5,padx=10, fill='x')
         lb3 = Label(f321,
                     text='Select file with flow calibration data (optional)'
-                    ).pack(pady=5,padx=10)
+                    ).pack(pady=5,padx=10, side=TOP)
         
-        tb3 = Entry(f321)
-        tb3.pack(pady=5,padx=10)
+        tb3 = Entry(f321, width=47)
+        tb3.pack(pady=5,padx=10, side=LEFT)
         b3 = tk.Button(f321,
                          text = "Browse",
                          command = self.browse_for_file
-                         ).pack(pady=5,padx=10)
+                         ).pack(pady=5,padx=10, side=LEFT)
         
         
         f322 = ttk.LabelFrame(f32, text='Pressure calibration')
@@ -295,63 +392,15 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
         lb_units2.pack(pady=5,padx=10, side= RIGHT)
         
 
-    
+        bt_go = Button(f3,
+                       text='GO!',
+                       command=self.load_and_process,
+                       background='forest green',
+                       foreground='white',
+                       font = 'Times 18 bold',
+                       width = 15)
+        bt_go.pack(side=BOTTOM)
+        bt_go.place(rely=0.82, relx=0.25)
     
 if __name__ == '__main__':
     ccn_processing().mainloop()
-
-'''
-def main():
-    root = tk.Tk()
-    root.geometry("480x460")
-    root.title("Aerosol Microphysics Processing")
-    
-    # Selecting raw files to concatenate
-    def open_file_dialog():
-        files_raw = filedialog.askopenfilenames()
-        output_path_default = os.path.dirname(files_raw[0])
-        
-        for i in range(0, len(files_raw)):
-            lb_openFiles.insert(i,files_raw[i])
-        if output_path is None:
-            t_outputPath.insert(END,output_path_default)
-            output_path = output_path_default
-        
-
-    
-    b_open = tk.Button(root,
-                       text = "Select raw files",
-                       command = open_file_dialog
-                       ).pack()
-                       #).grid(row=0,column=0)
-    
-    lb_openFiles = tk.Listbox(root)
-    lb_openFiles.pack()
-    
-    # Selecting output path, if not chosen, use the input directory
-    def open_path_dialog():
-        output_path = filedialog.askdirectory()
-        global output_path
-        t_outputPath.delete(1.0,END)
-        t_outputPath.insert(END,output_path)
-    
-    b_output = tk.Button(root,
-                         text = "Change output directory",
-                         command = open_path_dialog
-                         ).pack()
-    t_outputPath = tk.Text(root)
-    t_outputPath.pack()
-    
-    # Choose output filetype
-    
-    
-    
-    filetypes = ['netcdf','hdf','csv']
-    cb_filetype = ttk.Combobox(root, values=filetypes, state='readonly')
-    cb_filetype.current(0) # set selection
-    cb_filetype.pack()
-    
-    root.mainloop()
-    
-main()
-'''
