@@ -19,29 +19,7 @@ from tkinter import ttk
 
 
 class ccn_processing(ttk.Frame):
-    '''
-    # Initialise global variables
-    output_path = None
-    files_raw = None
-    
-    output_1s = True
-    output_5s = False
-    output_10s = False
-    output_15s = False
-    output_30s = False
-    output_1m = False
-    output_5m = False
-    output_10m = False
-    output_15m = False
-    output_30m = False
-    output_1h = False
-    output_3h = False
-    output_6h = False
-    output_12h = False
-    output_1d = False
-    forceReload = False
-    '''
-    
+ 
 ##-----------------------------------------------------------
 ## GUI Functionality
 ##-----------------------------------------------------------        
@@ -49,7 +27,6 @@ class ccn_processing(ttk.Frame):
         '''
         Prompts user to select input files
         '''
-#        global output_path
         self.files_raw = filedialog.askopenfilenames()
         output_path_default = os.path.dirname(self.files_raw[0])
         
@@ -61,7 +38,6 @@ class ccn_processing(ttk.Frame):
             self.t_outputPath.insert(tk.END,output_path_default)
             self.output_path = output_path_default
         
-        #if output_path is None:
         
     
     def browse_for_file(self):
@@ -75,7 +51,6 @@ class ccn_processing(ttk.Frame):
         '''
         Selecting output path, if not chosen, use the input directory
         '''
-#        global output_path
         self.output_path = filedialog.askdirectory()
         self.t_outputPath.delete(1.0,tk.END)
         self.t_outputPath.insert(tk.END,self.output_path)
