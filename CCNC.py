@@ -170,7 +170,7 @@ def LoadAndProcess(CCN_raw_path,
                    CCN_output_path = None,
                    CCN_output_filetype = 'hdf',
                    filename_base = 'CCN', 
-                   QC_data = False, 
+                   QC = False, 
                    timeResolution='1S',
                    concat_file_frequency = 'all',
                    mask_period_timestamp_list = [''],
@@ -211,7 +211,7 @@ def LoadAndProcess(CCN_raw_path,
             ccn = pd.read_hdf(filename_1sec,key=filename_base)
             NeedsTimeResampling = True 
         return ccn
-    elif filtOrRaw.lower() == 'raw':
+    else:
         if os.path.isfile(filename_1sec):
             ccn = pd.read_hdf(filename_1sec,key=filename_base)
         elif os.path.isfile(filename_raw):
@@ -221,13 +221,13 @@ def LoadAndProcess(CCN_raw_path,
             return ccn
         else:
             NeedsTimeResampling = True
-    else:
-        print("No hdf file exists with the raw data! Please run the following \
-              function before this one: CCNC.Load_to_HDF")
+ #   else:
+ #       print("No hdf file exists with the raw data! Please run the following \
+ #             function before this one: CCNC.Load_to_HDF")
         return
         
     filt = False #Initialise
-    if filtOrRaw.lower() == 'raw':
+    if not QC:#filtOrRaw.lower() == 'raw':
         # QC based on instrument parameters
         ccn = DataQC(ccn)
         
