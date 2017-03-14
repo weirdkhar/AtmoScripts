@@ -137,20 +137,53 @@ def create_temp_output_directory():
     
     return output_dir
 
-def load_flow_cals(flow_cal_file, CCN_raw_path):
+def load_basic_csv(filename = None, path = None, file_FULLPATH=None):
     '''
     Loads flow calibration data (i.e. timestamps and flow from flow checks)
     from file. There is an assumption that the calibration file (in csv) has 
     been created using excel from data extracted from the text log file.
+    Input either the full path to the filename, or the folder path and the 
+    filename
     '''
-    os.chdir(CCN_raw_path)
+    if file_FULLPATH is None:
+        msg = 'Please specify either the full path to the flow cal file, or \
+               the calibration filename with the folder path'
+        assert filename is not None, msg
+        assert path is not None, msg
+               
     
-    assert os.path.isfile(flow_cal_file), \
+        file_FULLPATH = path+filename
+    
+    
+    assert os.path.isfile(file_FULLPATH), \
             'Flow cal file does not exists! Exiting'
     
-    flow_cal_df = pd.read_csv(flow_cal_file, delimiter = ',')        
+    df = pd.read_csv(file_FULLPATH, delimiter = ',')        
     
-    return flow_cal_df
+    return df
+
+def load_manual_mask(filename = None, path = None, file_FULLPATH=None):
+    '''
+    Loads manual mask data (i.e. start & end timestamps and event description)
+    from file. There is an assumption that the mask file (in csv) has 
+    been created using excel from data extracted from the text log file.
+    Input either the full path to the filename, or the folder path and the 
+    filename
+    '''
+    df = load_basic_csv(filename, path, file_FULLPATH)
+    return df
+    
+def load_flow_cals(filename = None, path = None, file_FULLPATH=None):
+    '''
+    Loads flow calibration data (i.e. timestamps and flow from flow checks)
+    from file. There is an assumption that the calibration file (in csv) has 
+    been created using excel from data extracted from the text log file.
+    Input either the full path to the filename, or the folder path and the 
+    filename
+    '''
+    df = load_basic_csv(filename, path, file_FULLPATH)
+    return df
+
     
 def LoadAndQC():
     '''
