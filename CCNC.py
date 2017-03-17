@@ -185,15 +185,28 @@ def load_flow_cals(filename = None, path = None, file_FULLPATH=None):
     return df
 
     
-def LoadAndQC():
+def delete_previous_output(output_path, output_filetype, filename_base):
     '''
-    Loads CCNC data from raw csv files, concatenates, then saved to output files
-    of either hdf or netcdf format. Data can then be quality controlled using
-    parameters output by the instrument. If a file containing flow calibration
-    values is provided, it will do a flow calibration too.
+    Looks for previously loaded files in the output path and removes them, 
+    ready for the loading them from the raw files again
     '''
+    os.chdir(output_path)
+    if output_filetype == 'hdf':
+        ext = '*.h5'
+    elif output_filetype == 'netcdf':
+        ext = '*.nc'
+    elif output_filetype == 'csv':
+        ext = filename_base+'*.csv'
+    
+    filelist = glob.glob(ext)
+    
+    if len(filelist) > 0:
+        print('Deleting previous output files to reload from source:')
+        for file in filelist:
+            os.remove(file)
+            print(file + ' deleted')
+                    
     return
-
 
 
 
@@ -203,29 +216,56 @@ def LoadAndProcess(CCN_raw_path,
                    CCN_output_path = None,
                    CCN_output_filetype = 'hdf',
                    filename_base = 'CCN', 
+                   force_reload_from_source = False,
                    QC = False, 
                    timeResolution='1S',
                    concat_file_frequency = 'all',
-                   mask_period_timestamp_list = [''],
-                   CCN_flow_check_df = '',
+                   mask_period_timestamp_df = None,
+                   CCN_flow_cal_file = None,
+                   CCN_flow_cal_df = None,
                    CCN_flow_setpt = 500,
                    CCN_flow_polyDeg = 2,
-                   flow_cal_file = None
+                   press_cal = 1010,
+                   press_meas = 1010,
+                   split_by_supersaturation = True
                    ):
+    '''
+    Loads CCNC data from raw csv files, concatenates, then saved to output files
+    of either hdf or netcdf format. Data can then be quality controlled using
+    parameters output by the instrument. If a file containing flow calibration
+    values is provided, it will do a flow calibration too.
+    
+    Things to do:
+        Change time resolution to deal with a matrix input
+        enable force reload from source
+        split_by_supersaturation
+        deal with a mask_df
+        deal with a flowcal_df
+        pressure calibrations
+    '''
+    if force_reload_from_source:
+        delete_previous_output(CCN_output_path, 
+                               CCN_output_filetype, 
+                               filename_base)
     
     
     os.chdir(CCN_raw_path)
     
+    # Load from source
     if CCN_output_filetype == 'netcdf':
         Load_to_NetCDF()
-    else:
+    elif CCN_output_filetype == 'hdf':
         Load_to_HDF(CCN_raw_path,
                     CCN_output_path,
                     output_h5_filename = filename_base,
                     resample_timebase = timeResolution,
                     concat_file_frequency = concat_file_frequency)
+    elif CCN_output_filetype == 'csv':
+        Load_to_csv()
+    else:
+        assert CCN_output_filetype in ['netcdf','hdf','csv'], 'Unrecognised filetype!'
         
-        
+    
     filename = filename_base+'_'+timeResolution+'.h5'
     if QC:    
         filename_1sec = filename_base+'_QC.h5'
@@ -317,7 +357,7 @@ def Load_to_NetCDF(
                 concat_file_frequency = 'all'
                 ):
     ''' 
-    Need to write this
+    Need to write this XKCD
     '''
     return
     

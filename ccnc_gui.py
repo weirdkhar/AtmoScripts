@@ -104,13 +104,15 @@ class ccn_processing(ttk.Frame):
                 CCN_output_path = self.output_path,
                 CCN_output_filetype = self.cb_output_filetype.get(),
                 filename_base = 'CCN', 
+                force_reload_from_source = self.cb_forceReload,
+                split_by_supersaturation = self.split_SS,
                 QC = self.cb_qc, 
                 timeResolution=output_time_res,
                 concat_file_frequency = concat_file_freq,
-                mask_period_timestamp_list = mask_df,
-                CCN_flow_check_df = flow_cal_df,
-                CCN_flow_setpt = 500,
-                CCN_flow_polyDeg = 2
+                mask_period_timestamp_df = mask_df,
+                CCN_flow_cal_df = flow_cal_df,
+                press_cal = self.tb_calPress,
+                press_meas = self.tb_measPress
                 )
         
 ##-----------------------------------------------------------
