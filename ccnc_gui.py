@@ -9,6 +9,7 @@ Useful documentation:
     http://pyinmyeye.blogspot.com.au/2012/08/tkinter-combobox-demo.html
     http://www.python-course.eu/tkinter_layout_management.php
 '''
+import CCNC
 import os
 import sys
 import tkinter as tk
@@ -20,50 +21,15 @@ from tkinter import ttk
 
 class ccn_processing(ttk.Frame):
  
-##-----------------------------------------------------------
-## GUI Functionality
-##-----------------------------------------------------------        
-    def open_file_dialog(self):
-        '''
-        Prompts user to select input files
-        '''
-        self.files_raw = filedialog.askopenfilenames()
-        output_path_default = os.path.dirname(self.files_raw[0])
-        
-        for i in range(0, len(self.files_raw)):
-            self.lb_openFiles.insert(i,self.files_raw[i])
-        try :
-            self.output_path
-        except AttributeError:
-            self.t_outputPath.insert(tk.END,output_path_default)
-            self.output_path = output_path_default
-        
-        
     
-    def browse_for_file(self):
-        '''
-        Prompts user to select input file
-        '''
-        file = filedialog.askopenfilename()
-        return file
     
-    def open_path_dialog(self):
-        '''
-        Selecting output path, if not chosen, use the input directory
-        '''
-        self.output_path = filedialog.askdirectory()
-        self.t_outputPath.delete(1.0,tk.END)
-        self.t_outputPath.insert(tk.END,self.output_path)
-        
-        
     
     def load_and_process(self):
         '''
         Once all parameters have been chosen, checks all the input values and
         begins the processing.
         '''
- #       global output_path
-#        global files_raw
+
         # Initialise
         msg = 'There is an error with your input! \n'
         # Check input variables
@@ -89,8 +55,108 @@ class ccn_processing(ttk.Frame):
         # and disable input window
         self._build_status_window()
         
-        # Call processing function
         
+        # Setup input
+        output_time_res = [
+                self.output_1s,
+                self.output_5s,
+                self.output_10s,
+                self.output_15s,
+                self.output_30s,
+                self.output_1m,
+                self.output_5m,
+                self.output_10m,
+                self.output_15m,
+                self.output_30m,
+                self.output_1h,
+                self.output_3h,
+                self.output_6h,
+                self.output_12h,
+                self.output_1d
+                ]
+        
+        
+        if self.cb_file_freq.get() == 'Single file':
+            concat_file_freq = 'all'
+        elif self.cb_file_freq.get() == 'Daily files':
+            concat_file_freq = 'daily'
+        elif self.cb_file_freq.get() == 'Weekly files':
+            concat_file_freq = 'weekly'
+        elif self.cb_file_freq.get() == 'Monthly files':
+            concat_file_freq = 'monthly'
+        else:
+            print('Something has gone terribly wrong here...')
+            self.destroy()
+        
+        if self.tb3.get() is not None:
+            flow_cal_df = CCNC.load_flow_cals(self.flowcal_file)
+        else:
+            flow_cal_df = None
+            
+        if self.tb2.get() is not None:
+            mask_df = CCNC.load_manual_mask(self.mask_file)
+        else:
+            mask_df = None
+        
+        # Call processing function
+        CCNC.LoadAndProcess(
+                CCN_raw_path = self.raw_path, 
+                CCN_output_path = self.output_path,
+                CCN_output_filetype = self.cb_output_filetype.get(),
+                filename_base = 'CCN', 
+                QC = self.cb_qc, 
+                timeResolution=output_time_res,
+                concat_file_frequency = concat_file_freq,
+                mask_period_timestamp_list = mask_df,
+                CCN_flow_check_df = flow_cal_df,
+                CCN_flow_setpt = 500,
+                CCN_flow_polyDeg = 2
+                )
+        
+##-----------------------------------------------------------
+## GUI Functionality
+##-----------------------------------------------------------        
+    def raw_file_dialog(self):
+        '''Prompts user to select input files'''
+        self.files_raw = filedialog.askopenfilenames()
+        self.raw_path = os.path.dirname(self.files_raw[0])
+        
+        # Update the text box
+        for i in range(0, len(self.files_raw)):
+            self.lb_openFiles.insert(i,self.files_raw[i])
+        try :
+            self.output_path
+        except AttributeError:
+            self.t_outputPath.insert(tk.END,self.raw_path)
+            self.output_path = self.raw_path
+        return
+        
+    
+    def browse_for_file(self):
+        '''Prompts user to select input file'''
+        file = filedialog.askopenfilename()
+        return file
+    
+    def ask_mask_file(self):
+        ''' Asks for the mask file input and shows it in the gui'''
+        self.mask_file = self.browse_for_file()
+        self.tb2.insert(tk.END,self.mask_file)
+        return
+    
+    def ask_flowcal_file(self):
+        ''' Asks for the flow cal file input and shows it in the gui'''
+        self.flowcal_file = self.browse_for_file()
+        self.tb3.insert(tk.END,self.flowcal_file)
+        return
+    
+    def output_path_dialog(self):
+        '''Selecting output path, if not chosen, use the input directory'''
+        self.output_path = filedialog.askdirectory()
+        self.t_outputPath.delete(1.0,tk.END)
+        self.t_outputPath.insert(tk.END,self.output_path)
+                
+    
+
         
 ##-----------------------------------------------------------
 ## GUI Widgets
@@ -127,7 +193,7 @@ class ccn_processing(ttk.Frame):
         # Create open file dialog input
         self.b_open = tk.Button(self.f1,
                        text = "Select raw files",
-                       command = self.open_file_dialog
+                       command = self.raw_file_dialog
                        )
         self.b_open.pack(pady=5,padx=10,side=tk.TOP)
         self.b_open.place(relx=0.02,rely=0.02)
@@ -162,7 +228,7 @@ class ccn_processing(ttk.Frame):
         # create output path dialog
         self.b_output = tk.Button(self.f2,
                          text = "Change output directory",
-                         command = self.open_path_dialog
+                         command = self.output_path_dialog
                          )
         self.b_output.pack(pady=5,padx=10, side=tk.LEFT)
         self.b_output.place(rely=0.05,relx=0.02)
@@ -177,13 +243,13 @@ class ccn_processing(ttk.Frame):
         self.lb1.pack(pady=5,padx=10,side=tk.LEFT)
         self.lb1.place(rely=0.16, relx=0.02)
         
-        self.cb1 = ttk.Combobox(self.f2, 
+        self.cb_output_filetype = ttk.Combobox(self.f2, 
                                 values=filetypes, 
                                 state='readonly', 
                                 width = 10)
-        self.cb1.current(0)  # set selection
-        self.cb1.pack(pady=5, padx=10, side=tk.LEFT)
-        self.cb1.place(rely=0.16, relx=0.375)
+        self.cb_output_filetype.current(0)  # set selection
+        self.cb_output_filetype.pack(pady=5, padx=10, side=tk.LEFT)
+        self.cb_output_filetype.place(rely=0.16, relx=0.375)
         
         # Create output file frequency combobox
         file_freq=['Single file','Daily files','Weekly files','Monthly files']
@@ -192,20 +258,29 @@ class ccn_processing(ttk.Frame):
         self.lb2.pack(pady=5,padx=10,side=tk.LEFT)
         self.lb2.place(rely=0.26, relx=0.02)
         
-        self.cb2 = ttk.Combobox(self.f2, 
+        self.cb_file_freq = ttk.Combobox(self.f2, 
                                 values=file_freq, 
                                 state='readonly', 
                                 width = 15)
-        self.cb2.current(0)  # set selection
-        self.cb2.pack(pady=5, padx=10, side=tk.LEFT)
-        self.cb2.place(rely=0.26, relx=0.375)
+        self.cb_file_freq.current(0)  # set selection
+        self.cb_file_freq.pack(pady=5, padx=10, side=tk.LEFT)
+        self.cb_file_freq.place(rely=0.26, relx=0.375)
+
+        # Create output supersaturation checkbox
+        self.split_SS = tk.IntVar
+        self.cb_SS = tk.Checkbutton(self.f2,
+                                    text = 'Split by supersaturation',
+                                    variable=self.split_SS)
+        self.cb_SS.select()
+        self.cb_SS.pack(pady=5,padx=10)
+        self.cb_SS.place(relx=0.02, rely=0.36)
         
         # Create output time resolution options
         self.f21 = ttk.LabelFrame(self.f2,
                              text='Output time resolution')
         self.f21.pack(pady=5,padx=10, fill='x')
-        self.f21.place(rely=0.36, relx=0.02, relwidth=0.96, relheight=0.58)
-
+        self.f21.place(rely=0.46, relx=0.02, relwidth=0.96, relheight=0.50)
+        
         # Declare checkbox variables
         self.output_1s = tk.IntVar
         self.output_5s = tk.IntVar
@@ -243,39 +318,39 @@ class ccn_processing(ttk.Frame):
         self.cb_1s.select() # Select default value as checked
         
         # Position
-        self.cb_1s.pack(pady=5,padx=10)
-        self.cb_5s.pack(pady=5,padx=10)
-        self.cb_10s.pack(pady=5,padx=10)
-        self.cb_15s.pack(pady=5,padx=10)
-        self.cb_30s.pack(pady=5,padx=10)
-        self.cb_1m.pack(pady=5,padx=10)
-        self.cb_5m.pack(pady=5,padx=10)
-        self.cb_10m.pack(pady=5,padx=10)
-        self.cb_15m.pack(pady=5,padx=10)
-        self.cb_30m.pack(pady=5,padx=10)
-        self.cb_1h.pack(pady=5,padx=10)
-        self.cb_3h.pack(pady=5,padx=10)
-        self.cb_6h.pack(pady=5,padx=10)
-        self.cb_12h.pack(pady=5,padx=10)
-        self.cb_1d.pack(pady=5,padx=10)
+        self.cb_1s.pack(pady=2,padx=10)
+        self.cb_5s.pack(pady=2,padx=10)
+        self.cb_10s.pack(pady=2,padx=10)
+        self.cb_15s.pack(pady=2,padx=10)
+        self.cb_30s.pack(pady=2,padx=10)
+        self.cb_1m.pack(pady=2,padx=10)
+        self.cb_5m.pack(pady=2,padx=10)
+        self.cb_10m.pack(pady=2,padx=10)
+        self.cb_15m.pack(pady=2,padx=10)
+        self.cb_30m.pack(pady=2,padx=10)
+        self.cb_1h.pack(pady=2,padx=10)
+        self.cb_3h.pack(pady=2,padx=10)
+        self.cb_6h.pack(pady=2,padx=10)
+        self.cb_12h.pack(pady=2,padx=10)
+        self.cb_1d.pack(pady=2,padx=10)
         
         self.cb_1s.place(relx=0.02, rely=0.02)
-        self.cb_5s.place(relx=0.02, rely=0.22)
-        self.cb_10s.place(relx=0.02,rely=0.42)
-        self.cb_15s.place(relx=0.02,rely=0.62)
-        self.cb_30s.place(relx=0.02,rely=0.82)
+        self.cb_5s.place(relx=0.02, rely=0.20)
+        self.cb_10s.place(relx=0.02,rely=0.38)
+        self.cb_15s.place(relx=0.02,rely=0.56)
+        self.cb_30s.place(relx=0.02,rely=0.74)
         
         self.cb_1m.place(relx=0.33, rely=0.02)
-        self.cb_5m.place(relx=0.33, rely=0.22)
-        self.cb_10m.place(relx=0.33,rely=0.42)
-        self.cb_15m.place(relx=0.33,rely=0.62)
-        self.cb_30m.place(relx=0.33,rely=0.82)
+        self.cb_5m.place(relx=0.33, rely=0.20)
+        self.cb_10m.place(relx=0.33,rely=0.38)
+        self.cb_15m.place(relx=0.33,rely=0.56)
+        self.cb_30m.place(relx=0.33,rely=0.74)
         
         self.cb_1h.place(relx=0.67, rely=0.02)
-        self.cb_3h.place(relx=0.67, rely=0.22)       
-        self.cb_6h.place(relx=0.67, rely=0.42)
-        self.cb_12h.place(relx=0.67,rely=0.62)
-        self.cb_1d.place(relx=0.67, rely=0.82)
+        self.cb_3h.place(relx=0.67, rely=0.20)       
+        self.cb_6h.place(relx=0.67, rely=0.38)
+        self.cb_12h.place(relx=0.67,rely=0.56)
+        self.cb_1d.place(relx=0.67, rely=0.74)
         
         
         
@@ -297,11 +372,13 @@ class ccn_processing(ttk.Frame):
                     text='Select file with mask events (optional)'
                     )
         self.f311.pack(pady=5,padx=10, fill='x')
-        self.tb2 = tk.Entry(self.f311, width=47)
+        #self.tb_mask_file = tk.StringVar()
+        self.tb2 = tk.Entry(self.f311, width=47) 
+        #                    ,textvariable=self.tb_mask_file)
         self.tb2.pack(pady=5,padx=10, fill='x', side=tk.LEFT)
         self.b3 = tk.Button(self.f311,
                          text = "Browse",
-                         command = self.browse_for_file
+                         command = self.ask_mask_file
                          ).pack(pady=5,padx=10, side=tk.LEFT)
         
         
@@ -315,11 +392,13 @@ class ccn_processing(ttk.Frame):
                     )
         self.lb3.pack(pady=5,padx=10, side=tk.TOP)
         
-        self.tb3 = tk.Entry(self.f321, width=47)
+#        self.tb_flowcal_file = tk.StringVar()
+        self.tb3 = tk.Entry(self.f321, width=47) 
+#                            ,textvariable=self.tb_flowcal_file)
         self.tb3.pack(pady=5,padx=10, side=tk.LEFT)
         self.b3 = tk.Button(self.f321,
                          text = "Browse",
-                         command = self.browse_for_file
+                         command = self.ask_flowcal_file
                          )
         self.b3.pack(pady=5,padx=10, side=tk.LEFT)
         
@@ -336,7 +415,7 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
                       )
         self.lb322.pack(pady=5,padx=10)
         
-        self.f3221 = tk.LabelFrame(self.f322,text='Calibration Pressure')
+        self.f3221 = tk.LabelFrame(self.f322,text='Cal. Pressure')
         self.tb_calPress = tk.Entry(self.f3221, width = 5)
         self.tb_calPress.insert(tk.END,830)
         self.lb_units1 = tk.Label(self.f3221,text='hPa')
@@ -345,7 +424,7 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
         self.tb_calPress.pack(pady=5,padx=10, side=tk.LEFT)
         self.lb_units1.pack(pady=5,padx=10, side=tk.LEFT)
         
-        self.f3222 = tk.LabelFrame(self.f322,text='Measurement Pressure')
+        self.f3222 = tk.LabelFrame(self.f322,text='Meas. Pressure')
         self.tb_measPress = tk.Entry(self.f3222, width = 5)
         self.tb_measPress.insert(tk.END,1010)
         self.lb_units2 = tk.Label(self.f3222,text='hPa')
