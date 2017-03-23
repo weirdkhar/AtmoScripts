@@ -3,6 +3,8 @@ Functions related to the loading and processing of CCNC data from DMT
 
 version: 1.0
 date: 2017-02-15
+
+Search for "xkcd" to find sections of the code that need attention
 """
 import sys
 import pandas as pd
@@ -225,6 +227,7 @@ def LoadAndProcess(CCN_raw_path,
                    CCN_flow_cal_df = None,
                    CCN_flow_setpt = 500,
                    CCN_flow_polyDeg = 2,
+                   calibrate_for_pressure = False,
                    press_cal = 1010,
                    press_meas = 1010,
                    split_by_supersaturation = True
@@ -235,19 +238,20 @@ def LoadAndProcess(CCN_raw_path,
     parameters output by the instrument. If a file containing flow calibration
     values is provided, it will do a flow calibration too.
     
-    Things to do:
+    Things to do: #xkcd
         Change time resolution to deal with a matrix input
         enable force reload from source
         split_by_supersaturation
-        deal with a mask_df
-        deal with a flowcal_df
+DONE        deal with a mask_df
+DONE        deal with a flowcal_df
         pressure calibrations
+        calculate uncertainties
+        figure out file naming
     '''
     if force_reload_from_source:
         delete_previous_output(CCN_output_path, 
                                CCN_output_filetype, 
                                filename_base)
-    
     
     os.chdir(CCN_raw_path)
     
@@ -300,26 +304,35 @@ def LoadAndProcess(CCN_raw_path,
         return
         
     filt = False #Initialise
-    if not QC:#filtOrRaw.lower() == 'raw':
+    if QC:#filtOrRaw.lower() == 'raw':
         # QC based on instrument parameters
         ccn = DataQC(ccn)
+    
+    
+    # work through mask periods and set values to nan
+    for i in range(int(len(mask_period_timestamp_df)/2)):
+        ccn.loc[(ccn.index >= mask_period_timestamp_df[2*i]) & 
+                (ccn.index < mask_period_timestamp_df[2*i+1])]= np.nan
+        filt = True
         
-        # Flow calibrations
-        # Load flow_cal_file if its provided
-        if flow_cal_file is not None:
-            CCN_flow_check_df = load_flow_cals(flow_cal_file, CCN_raw_path)
-        if not (CCN_flow_check_df == ''):
-            ccn = flow_cal(ccn,CCN_flow_check_df,
-                           CCN_flow_setpt,polydeg=CCN_flow_polyDeg)
-            filt = True
-        # work through mask periods and set values to nan
-        for i in range(int(len(mask_period_timestamp_list)/2)):
-            ccn.loc[(ccn.index >= mask_period_timestamp_list[2*i]) & 
-                    (ccn.index < mask_period_timestamp_list[2*i+1])]= np.nan
-            filt = True
-        # Save to file as 1 second filtered data  
-        if filt:
-            ccn.to_hdf(filename_base+'_filt.h5',key = filename_base)
+        
+    # Flow calibrations
+    # Load flow_cal_file if its provided
+    if CCN_flow_cal_file is not None:
+        CCN_flow_check_df = load_flow_cals(CCN_flow_cal_file, CCN_raw_path)
+    if CCN_flow_check_df is not None:
+        ccn = flow_cal(ccn,CCN_flow_check_df,
+                       CCN_flow_setpt,polydeg=CCN_flow_polyDeg)
+        filt = True
+    
+    # Pressure calibration
+    if calibrate_for_pressure:
+        ccn = pressure_calibration(ccn,press_cal,press_meas)
+        
+    
+    # Save to file as 1 second filtered data  
+    if filt:
+        ccn.to_hdf(filename_base+'_filt.h5',key = filename_base)
     else:
         print("Don't know what to load. Please specify either Raw or Filt")
         return
@@ -332,6 +345,9 @@ def LoadAndProcess(CCN_raw_path,
                                 time_int=[timeResolution])   
         
         ccn = filter_ccn_stat(data = ccn, std_lim = 150, removeData=True)
+        
+    # Split into supersaturations
+    if split_by_supersaturation:
         
     
     return ccn
@@ -361,7 +377,18 @@ def Load_to_NetCDF(
     '''
     return
     
-    
+def Load_to_csv(
+                RawDataPath,
+                DestDataPath=None,
+                output_h5_filename = 'CCNC', 
+                resample_timebase = None, 
+                concat_file_frequency = 'all'
+                ):
+    ''' 
+    Need to write this XKCD
+    '''
+    return
+
 def Load_to_HDF(
                 RawDataPath,
                 DestDataPath=None,
@@ -810,7 +837,15 @@ def flow_cal(data, measured_flows_df, set_flow_rate, polydeg=2):
     
     return data
 
-    
+def pressure_calibration(data, press_cal = 1010,press_meas = 1010):
+    '''
+    Corrects for pressure changes between the measurement site and the 
+    calibration site. Note that atmospheric pressure in Boulder is 830 hPa.
+    Units of input pressure are hPa.
+    '''
+    # xkcd
+    df = data
+    return df
     
 def filter_uwy(uwy_merge_data,
                uwy_path):
