@@ -58,21 +58,21 @@ class ccn_processing(ttk.Frame):
         
         # Setup input
         output_time_res = [
-                self.output_1s,
-                self.output_5s,
-                self.output_10s,
-                self.output_15s,
-                self.output_30s,
-                self.output_1m,
-                self.output_5m,
-                self.output_10m,
-                self.output_15m,
-                self.output_30m,
-                self.output_1h,
-                self.output_3h,
-                self.output_6h,
-                self.output_12h,
-                self.output_1d
+                self.output_1s.get(),
+                self.output_5s.get(),
+                self.output_10s.get(),
+                self.output_15s.get(),
+                self.output_30s.get(),
+                self.output_1m.get(),
+                self.output_5m.get(),
+                self.output_10m.get(),
+                self.output_15m.get(),
+                self.output_30m.get(),
+                self.output_1h.get(),
+                self.output_3h.get(),
+                self.output_6h.get(),
+                self.output_12h.get(),
+                self.output_1d.get()
                 ]
         
         
@@ -88,14 +88,14 @@ class ccn_processing(ttk.Frame):
             print('Something has gone terribly wrong here...')
             self.destroy()
         
-        if self.tb3.get() is not None:
+        try:
             flow_cal_df = CCNC.load_flow_cals(self.flowcal_file)
-        else:
+        except:
             flow_cal_df = None
             
-        if self.tb2.get() is not None:
+        try:
             mask_df = CCNC.load_manual_mask(self.mask_file)
-        else:
+        except:
             mask_df = None
         
         # Call processing function
@@ -104,13 +104,14 @@ class ccn_processing(ttk.Frame):
                 CCN_output_path = self.output_path,
                 CCN_output_filetype = self.cb_output_filetype.get(),
                 filename_base = 'CCN', 
-                force_reload_from_source = self.cb_forceReload,
-                split_by_supersaturation = self.split_SS,
-                QC = self.cb_qc, 
+                force_reload_from_source = self.forceReload.get(),
+                split_by_supersaturation = self.split_SS.get(),
+                QC = self.qc.get(), 
                 timeResolution=output_time_res,
                 concat_file_frequency = concat_file_freq,
                 mask_period_timestamp_df = mask_df,
                 CCN_flow_cal_df = flow_cal_df,
+                calibrate_for_pressure = self.cb_pressCal,
                 press_cal = self.tb_calPress,
                 press_meas = self.tb_measPress
                 )
@@ -158,7 +159,17 @@ class ccn_processing(ttk.Frame):
         self.t_outputPath.insert(tk.END,self.output_path)
                 
     
-
+    def grey_press_input(self):
+        '''
+        Disables input into the pressure fields if the checkbox isn't ticked.
+        '''
+        
+        if self.correct4pressure.get() == 0:
+            self.tb_calPress.configure(state='disabled')
+            self.tb_measPress.configure(state='disabled')
+        elif self.correct4pressure.get() == 1:
+            self.tb_calPress.configure(state='normal')
+            self.tb_measPress.configure(state='normal')
         
 ##-----------------------------------------------------------
 ## GUI Widgets
@@ -269,7 +280,7 @@ class ccn_processing(ttk.Frame):
         self.cb_file_freq.place(rely=0.26, relx=0.375)
 
         # Create output supersaturation checkbox
-        self.split_SS = tk.IntVar
+        self.split_SS = tk.IntVar()
         self.cb_SS = tk.Checkbutton(self.f2,
                                     text = 'Split by supersaturation',
                                     variable=self.split_SS)
@@ -284,21 +295,21 @@ class ccn_processing(ttk.Frame):
         self.f21.place(rely=0.46, relx=0.02, relwidth=0.96, relheight=0.50)
         
         # Declare checkbox variables
-        self.output_1s = tk.IntVar
-        self.output_5s = tk.IntVar
-        self.output_10s = tk.IntVar
-        self.output_15s = tk.IntVar
-        self.output_30s = tk.IntVar
-        self.output_1m = tk.IntVar
-        self.output_5m = tk.IntVar
-        self.output_10m = tk.IntVar
-        self.output_15m = tk.IntVar
-        self.output_30m = tk.IntVar
-        self.output_1h = tk.IntVar
-        self.output_3h = tk.IntVar
-        self.output_6h = tk.IntVar
-        self.output_12h = tk.IntVar
-        self.output_1d = tk.IntVar
+        self.output_1s = tk.IntVar()
+        self.output_5s = tk.IntVar()
+        self.output_10s = tk.IntVar()
+        self.output_15s = tk.IntVar()
+        self.output_30s = tk.IntVar()
+        self.output_1m = tk.IntVar()
+        self.output_5m = tk.IntVar()
+        self.output_10m = tk.IntVar()
+        self.output_15m = tk.IntVar()
+        self.output_30m = tk.IntVar()
+        self.output_1h = tk.IntVar()
+        self.output_3h = tk.IntVar()
+        self.output_6h = tk.IntVar()
+        self.output_12h = tk.IntVar()
+        self.output_1d = tk.IntVar()
         
         # Create checkboxes
         self.cb_1s = tk.Checkbutton(self.f21, text="1 second", variable=self.output_1s)
@@ -362,8 +373,7 @@ class ccn_processing(ttk.Frame):
         # Data mask/removal frame
         self.f31 = ttk.LabelFrame(self.f3, text='Data masking/removal')
         self.f31.pack(pady=5,padx=10, fill='x')
-        self.qc = tk.IntVar
-        #qc.set(value=1)
+        self.qc = tk.IntVar()
         self.cb_qc = tk.Checkbutton(self.f31, 
                                text="QC for internal parameters", 
                                variable=self.qc)
@@ -417,6 +427,15 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
                       )
         self.lb322.pack(pady=5,padx=10)
         
+        self.correct4pressure = tk.IntVar()
+        self.cb_pressCal = tk.Checkbutton(self.f322,
+                                          text = 'Correct for pressure',
+                                          variable = self.correct4pressure,
+                                          onvalue = 1, offvalue = 0,
+                                          command = self.grey_press_input)
+        self.cb_pressCal.select()
+        self.cb_pressCal.pack(pady=5, padx=10)
+        
         self.f3221 = tk.LabelFrame(self.f322,text='Cal. Pressure')
         self.tb_calPress = tk.Entry(self.f3221, width = 5)
         self.tb_calPress.insert(tk.END,830)
@@ -445,7 +464,8 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
                        font = 'Times 18 bold',
                        width = 15)
         self.bt_go.pack(side=tk.BOTTOM)
-        self.bt_go.place(rely=0.82, relx=0.25)
+        self.bt_go.place(rely=0.87, relx=0.25)
+
 
 ##-----------------------------------------------------------
 ## Variable check window
