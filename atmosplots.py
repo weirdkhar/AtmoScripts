@@ -38,9 +38,9 @@ import matplotlib
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from PyPDF2 import PdfFileMerger, PdfFileReader
-from mpl_toolkits.basemap import Basemap as basemap
+#from mpl_toolkits.basemap import Basemap as basemap #Only works on python2.7
 import windrose as wr # https://pypi.python.org/pypi/windrose/
-import cartopy as crt
+#import cartopy as crt #doesn't work
 import Aero_SizeDist as aero_sizedist
 
 
@@ -1076,6 +1076,8 @@ def plot_specgram(
 # import basemap
 # import folium
 
+# Projection - winkel Tripel
+
 def map_satellite_overlay():
     #http://scitools.org.uk/cartopy/docs/latest/matplotlib/advanced_plotting.html
     return
@@ -1154,75 +1156,75 @@ def map_shiptrack(lat,
     http://matplotlib.org/basemap/api/basemap_api.html
     
     ''' 
-    # Setup iteration if more than one dataset is being plotted  
-    i = 0
-    while i in range(0,len(lat)):
-        if type(lat) is not list: # When only one dataset is input
-            i = len(lat)
-            lat0 = lat.values
-            lon0 = lon.values
-            trace_colour0 = trace_colour
-        else: #When multiple datasets are input
-            lat0 = lat[i].values
-            lon0 = lon[i].values
-            if trace_colour is not list:
-                trace_colour = ['r','b','g','c','m','y','b','w']
-            trace_colour0 = trace_colour[i]
-                
-        for j in range(0,len(lon0)):
-            if lon0[j] < 0:
-                lon0[j] = lon0[j] + 360
-                
-        # Format data  before plotting
-        # Remove nans
-        lats = lat0[~np.isnan(lon0) | ~np.isnan(lat0)]
-        lons = lon0[~np.isnan(lon0) | ~np.isnan(lat0)]
-        
-        if z_data is not None:
-            z_data = z_data.values
-            z_data = z_data(~np.isnan(lons) | ~np.isnan(lats))
-        
-      
-
-        map = basemap(lat_0=map_origin[0],lon_0=map_origin[1],
-                      projection = projection,
-                      llcrnrlat = llcrnrlat,
-                      llcrnrlon = llcrnrlon,
-                      urcrnrlat = urcrnrlat,
-                      urcrnrlon = urcrnrlon,
-                      resolution = 'l')
-        
-        x, y = map(lons,lats)
-        
-        if LakeColour is None:
-            LakeColour = OceanColour
-        if bluemarble:    
-            map.bluemarble()
-        elif NoFillColour:
-            map.drawmapboundary()
-            map.fillcontinents()
-            map.drawcoastlines()
-        else:
-            map.drawmapboundary(fill_color=OceanColour)
-            map.fillcontinents(color=ContinentColour,lake_color=LakeColour)
-            map.drawcoastlines()
-        
-        map.drawmeridians([0,30,60,90,120,150,180,210,240,270,300,330], labels=[0,0,1,1])
-        map.drawparallels([-60,-45,-30,-15,0,15,30,45,60], labels=[1,1,0,0])
-        
-        # Set the function to interpret lat lons as what they are.
-        map.latlon = True
-        
-        if z_data is None:
-            map.scatter(x,y,color=trace_colour0)
-            #map.plot(x,y,color=trace_colour0)
-        else:
-            map.scatter(x,y,c=z_data)
-            #map.plot(x,y,c=z_data)
-            map.colorbar()
-        
-        i = i+1
-        
+#    # Setup iteration if more than one dataset is being plotted  
+#    i = 0
+#    while i in range(0,len(lat)):
+#        if type(lat) is not list: # When only one dataset is input
+#            i = len(lat)
+#            lat0 = lat.values
+#            lon0 = lon.values
+#            trace_colour0 = trace_colour
+#        else: #When multiple datasets are input
+#            lat0 = lat[i].values
+#            lon0 = lon[i].values
+#            if trace_colour is not list:
+#                trace_colour = ['r','b','g','c','m','y','b','w']
+#            trace_colour0 = trace_colour[i]
+#                
+#        for j in range(0,len(lon0)):
+#            if lon0[j] < 0:
+#                lon0[j] = lon0[j] + 360
+#                
+#        # Format data  before plotting
+#        # Remove nans
+#        lats = lat0[~np.isnan(lon0) | ~np.isnan(lat0)]
+#        lons = lon0[~np.isnan(lon0) | ~np.isnan(lat0)]
+#        
+#        if z_data is not None:
+#            z_data = z_data.values
+#            z_data = z_data(~np.isnan(lons) | ~np.isnan(lats))
+#        
+#      
+#
+#        map = basemap(lat_0=map_origin[0],lon_0=map_origin[1],
+#                      projection = projection,
+#                      llcrnrlat = llcrnrlat,
+#                      llcrnrlon = llcrnrlon,
+#                      urcrnrlat = urcrnrlat,
+#                      urcrnrlon = urcrnrlon,
+#                      resolution = 'l')
+#        
+#        x, y = map(lons,lats)
+#        
+#        if LakeColour is None:
+#            LakeColour = OceanColour
+#        if bluemarble:    
+#            map.bluemarble()
+#        elif NoFillColour:
+#            map.drawmapboundary()
+#            map.fillcontinents()
+#            map.drawcoastlines()
+#        else:
+#            map.drawmapboundary(fill_color=OceanColour)
+#            map.fillcontinents(color=ContinentColour,lake_color=LakeColour)
+#            map.drawcoastlines()
+#        
+#        map.drawmeridians([0,30,60,90,120,150,180,210,240,270,300,330], labels=[0,0,1,1])
+#        map.drawparallels([-60,-45,-30,-15,0,15,30,45,60], labels=[1,1,0,0])
+#        
+#        # Set the function to interpret lat lons as what they are.
+#        map.latlon = True
+#        
+#        if z_data is None:
+#            map.scatter(x,y,color=trace_colour0)
+#            #map.plot(x,y,color=trace_colour0)
+#        else:
+#            map.scatter(x,y,c=z_data)
+#            #map.plot(x,y,c=z_data)
+#            map.colorbar()
+#        
+#        i = i+1
+#        
         
     saveorshowplot(plt,SaveOrShowPlot,outputpath,outputfilename)
     
