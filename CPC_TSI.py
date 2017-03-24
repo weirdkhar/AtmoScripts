@@ -71,7 +71,10 @@ def save_to_hdf(data, output_h5_filename, output_file_frequency):
     elif output_file_frequency.lower() == 'weekly':
  #       print('Saving to weekly HDF files')
         
-        wk_str = [str(i.isocalendar()[1]) for i in data.index]
+        wk_str = ['0'+str(i.isocalendar()[1]) \
+                          if i.isocalendar()[1] < 10 \
+                          else str(i.isocalendar()[1]) \
+                          for i in data.index]
         
         # Identify the destination file of each data point
         data['destination_file'] = [output_h5_filename+'_'+x+'_wk'+y for x,y in zip(year_str,wk_str)]
