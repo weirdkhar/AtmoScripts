@@ -146,7 +146,7 @@ def main():
                    ccn_output_data_path,
                    ccn_output_filename = 'CCN',
                    ccn_output_filetype = ccn_output_filetype,
-                   timeResolution = output_time_resolution,
+                   output_time_resolution = output_time_resolution,
                    concat_file_frequency = output_file_frequency,
                    QC = QC,
                    flow_cal_file = flow_cal_file,
@@ -159,19 +159,20 @@ def main():
     return
     
     
-def LoadAndProcess(CCN_raw_path, 
-                   CCN_output_path = None,
-                   CCN_output_filetype = 'hdf',
+def LoadAndProcess(ccn_raw_path, 
+                   ccn_output_path = None,
+                   ccn_output_filetype = 'hdf',
                    filename_base = 'CCN', 
                    force_reload_from_source = False,
                    QC = False, 
-                   timeResolution='1S',
+                   output_time_resolution='1S',
                    concat_file_frequency = 'all',
+                   mask_period_file = None,
                    mask_period_timestamp_df = None,
-                   CCN_flow_cal_file = None,
-                   CCN_flow_cal_df = None,
-                   CCN_flow_setpt = 500,
-                   CCN_flow_polyDeg = 2,
+                   flow_cal_file = None,
+                   flow_cal_df = None,
+                   flow_setpt = 500,
+                   flow_polyDeg = 2,
                    calibrate_for_pressure = False,
                    press_cal = 1010,
                    press_meas = 1010,
@@ -198,35 +199,35 @@ DONE        deal with a flowcal_df
         calculate uncertainties
         figure out file naming
     '''
-    if ccn_output_data_path is None:
-        ccn_output_data_path = ccn_raw_data_path
+    if ccn_output_path is None:
+        ccn_output_path = ccn_raw_path
     
     # Concatenate csv files
-    concatenate_from_csv(ccn_raw_data_path,
-                         ccn_output_data_path,
-                         ccn_output_filename,
+    concatenate_from_csv(ccn_raw_path,
+                         ccn_output_path,
+                         filename_base,
                          output_time_resolution,
                          concat_file_frequency,
                          ccn_output_filetype,
-                         reload_from_source
+                         force_reload_from_source
                          )
     
     # Load data
-    ccn_data = load_ccn(ccn_output_data_path,ccn_output_filetype)
+    ccn_data = load_ccn(ccn_output_path,ccn_output_filetype)
     
     # QC data for internal parameters and for changes in SS
     if QC:
         ccn_data = DataQC(ccn_data)
-        save_as(ccn_data,ccn_output_data_path,'QC',ccn_output_filetype)
+        save_as(ccn_data,ccn_output_path,'QC',ccn_output_filetype)
     
     # Perform flow calibration if data is provided
     if flow_cal_file is not None: #xkcd Need to test!
-        ccn_data = flow_cal(ccn_data,flow_cal_file,ccn_raw_data_path)
-        save_as(ccn_data,ccn_output_data_path,'flowcal',ccn_output_filetype)
+        ccn_data = flow_cal(ccn_data,flow_cal_file,ccn_raw_path)
+        save_as(ccn_data,ccn_output_path,'flowcal',ccn_output_filetype)
     
     # Calibrate supersaturation
-    ccn_data = ss_cal(ccn_data, atmos_press, cal_press)
-    save_as(ccn_data,ccn_output_data_path,'sscal',ccn_output_filetype)
+    ccn_data = ss_cal(ccn_data, press_meas, press_cal)
+    save_as(ccn_data,ccn_output_path,'sscal',ccn_output_filetype)
     
     # Correct for inlet losses #xkcd
 #    ccn_data = inlet_corrections(ccn_data, IE)
@@ -234,19 +235,19 @@ DONE        deal with a flowcal_df
     
     # Separate into different supersaturations
     ccn_data = ss_split(ccn_data)
-    save_as(ccn_data,ccn_output_data_path,'ss_split',ccn_output_filetype)
+    save_as(ccn_data,ccn_output_path,'ss_split',ccn_output_filetype)
         
     # Filter for logged events
-    ccn_data = atmoscripts.log_filter(ccn_data,ccn_raw_data_path,log_filt_file)
-    save_as(ccn_data,ccn_output_data_path,'logfilt',ccn_output_filetype)
+    ccn_data = atmoscripts.log_filter(ccn_data,ccn_raw_path,mask_period_file)
+    save_as(ccn_data,ccn_output_path,'logfilt',ccn_output_filetype)
         
     # Filter for exhaust
     
-    save_as(ccn_data,ccn_output_data_path,'exhaustfilt',ccn_output_filetype)
+    save_as(ccn_data,ccn_output_path,'exhaustfilt',ccn_output_filetype)
     
     # Resample to hourly data and calculate uncertainties
     
-    save_as(ccn_data,ccn_output_data_path,'hourly',ccn_output_filetype)
+    save_as(ccn_data,ccn_output_path,'hourly',ccn_output_filetype)
     
     
     return
@@ -745,8 +746,19 @@ def get_week_label(filelist):
     # Extract the week number of each dates in the filelist
     
     dates = [f[13:19] for f in filelist]
-    weeknum = [str(datetime.date(2000+int(day[0:2]),
-               int(day[2:4]),int(day[4:6])).isocalendar()[1]) for day in dates]
+    weeknum = [str(datetime.date(
+                        2000+int(day[0:2]),
+                        int(day[2:4]),
+                        int(day[4:6])).isocalendar()[1]) 
+                if datetime.date(
+                        2000+int(day[0:2]),
+                        int(day[2:4]),
+                        int(day[4:6])).isocalendar()[1] > 10 \
+                else ('0'+str(datetime.date(
+                        2000+int(day[0:2]),
+                        int(day[2:4]),
+                        int(day[4:6])).isocalendar()[1])) \
+                for day in dates]
     year = [str(datetime.date(2000+int(day[0:2]),int(day[2:4]),
                int(day[4:6])).isocalendar()[0]) for day in dates]
     #week_label = ['_wk' + str(s) for s in list(weeknum)]
@@ -1021,6 +1033,8 @@ def timebase_resampler(
                       ):
     ''' 
     Time resampling
+    
+    xkcd - need to adjust this to deal with an array of outputs
     '''
     if time_int == '1S':
         print('No timebase resampling performed. Output base 1 second')
