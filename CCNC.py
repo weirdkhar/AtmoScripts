@@ -206,7 +206,7 @@ DONE?        figure out file naming
     concatenate_from_csv(ccn_raw_path,
                          ccn_output_path,
                          filename_base,
-                         output_time_resolution,
+                         None, # Don't resample timebase at this point
                          concat_file_frequency,
                          ccn_output_filetype,
                          force_reload_from_source
@@ -223,11 +223,14 @@ DONE?        figure out file naming
     # Perform flow calibration if data is provided
     if flow_cal_file is not None: #xkcd Need to test!
         ccn_data = flow_cal(ccn_data,flow_cal_file,ccn_raw_path)
-        save_as(ccn_data,ccn_output_path,'flowcal',ccn_output_filetype)
+        save_as(ccn_data,ccn_output_path,'flowCal',ccn_output_filetype)
+    elif flow_cal_df is not None:
+        ccn_data = flow_cal(ccn_data,measured_flows_df=flow_cal_df)
+        save_as(ccn_data,ccn_output_path,'flowCal',ccn_output_filetype)
     
     # Calibrate supersaturation
     ccn_data = ss_cal(ccn_data, press_meas, press_cal)
-    save_as(ccn_data,ccn_output_path,'sscal',ccn_output_filetype)
+    save_as(ccn_data,ccn_output_path,'ssCal',ccn_output_filetype)
     
     # Correct for inlet losses #xkcd
 #    ccn_data = inlet_corrections(ccn_data, IE)
@@ -235,11 +238,17 @@ DONE?        figure out file naming
     
     # Separate into different supersaturations
     ccn_data = ss_split(ccn_data, split_by_supersaturation)
-    save_as(ccn_data,ccn_output_path,'ss_split',ccn_output_filetype)
+    save_as(ccn_data,ccn_output_path,'ssSplit',ccn_output_filetype)
         
     # Filter for logged events
-    ccn_data = atmoscripts.log_filter(ccn_data,ccn_raw_path,mask_period_file)
-    save_as(ccn_data,ccn_output_path,'logfilt',ccn_output_filetype)
+    if mask_period_file is not None:
+        ccn_data = atmoscripts.log_filter(ccn_data,
+                                          ccn_raw_path,mask_period_file)
+        save_as(ccn_data,ccn_output_path,'logFilt',ccn_output_filetype)
+    elif mask_period_timestamp_df is not None:
+        ccn_data = atmoscripts.log_filter(ccn_data,
+                                          log_mask_df=mask_period_timestamp_df)
+        save_as(ccn_data,ccn_output_path,'logFilt',ccn_output_filetype)
         
     # Filter for exhaust
     
@@ -1070,8 +1079,28 @@ def timebase_resampler(
     
     if split_by_supersaturation:
         # Different data format to default
-        assert False, 'xkcd Need to write this code, timebase_resampler function'
         
+        for time in time_int:
+            data_resamp = data.resample(time,fill_method=None).count()
+            new_col_names = [data_resamp.columns + '_count' 
+                             for s in data_resamp.columns]
+            data_resamp.columns = new_col_names
+            for column in data.columns:
+                sub_ccn = data[column].copy()
+    
+                data_resamp[column+'_med'] = \
+                        sub_ccn.resample(time,fill_method=None).median()
+                data_resamp[column+'_mad'] = \
+                        sub_ccn.resample(time,fill_method=None).apply(mad)
+                data_resamp[column+'_avg'] = \
+                        sub_ccn.resample(time,fill_method=None).mean()
+                data_resamp[column+'_std'] = \
+                        sub_ccn.resample(time,fill_method=None).std()
+            
+            # Save to file
+            save_resampled_data(data,data_resamp,time,
+                                variable,input_h5_filename)
+            
     else:
     
         # define time resampling intervals
