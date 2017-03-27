@@ -74,7 +74,10 @@ class ccn_processing(ttk.Frame):
                 self.output_12h.get(),
                 self.output_1d.get()
                 ]
-        
+        # Change to boolean array
+        output_time_res = [True if item == 1 
+                           else False 
+                           for item in output_time_res]
         
         if self.cb_file_freq.get() == 'Single file':
             concat_file_freq = 'all'
@@ -98,22 +101,29 @@ class ccn_processing(ttk.Frame):
         except:
             mask_df = None
         
+        if self.cb_output_filetype.get() == 'netcdf':
+            output_filetype = 'nc'
+        elif self.cb_output_filetype.get() == 'hdf':
+            output_filetype = 'h5'
+        else:
+            output_filetype = 'csv'
+        
         # Call processing function
         CCNC.LoadAndProcess(
-                CCN_raw_path = self.raw_path, 
-                CCN_output_path = self.output_path,
-                CCN_output_filetype = self.cb_output_filetype.get(),
+                ccn_raw_path = self.raw_path, 
+                ccn_output_path = self.output_path,
+                ccn_output_filetype = output_filetype,
                 filename_base = 'CCN', 
                 force_reload_from_source = self.forceReload.get(),
                 split_by_supersaturation = self.split_SS.get(),
                 QC = self.qc.get(), 
-                timeResolution=output_time_res,
+                output_time_resolution=output_time_res,
                 concat_file_frequency = concat_file_freq,
                 mask_period_timestamp_df = mask_df,
-                CCN_flow_cal_df = flow_cal_df,
+                flow_cal_df = flow_cal_df,
                 calibrate_for_pressure = self.cb_pressCal,
-                press_cal = self.tb_calPress,
-                press_meas = self.tb_measPress
+                press_cal = float(self.tb_calPress.get()),
+                press_meas = float(self.tb_measPress.get())
                 )
         
 ##-----------------------------------------------------------
@@ -260,7 +270,7 @@ class ccn_processing(ttk.Frame):
                                 values=filetypes, 
                                 state='readonly', 
                                 width = 10)
-        self.cb_output_filetype.current(0)  # set selection
+        self.cb_output_filetype.current(1)  # set selection
         self.cb_output_filetype.pack(pady=5, padx=10, side=tk.LEFT)
         self.cb_output_filetype.place(rely=0.16, relx=0.375)
         
