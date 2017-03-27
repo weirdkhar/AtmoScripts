@@ -31,6 +31,7 @@ import atmoscripts
 import RVI_Underway
 import datetime
 import argparse
+import matplotlib.pyplot as plt
 
 
 def main():
@@ -176,7 +177,8 @@ def LoadAndProcess(ccn_raw_path,
                    calibrate_for_pressure = False,
                    press_cal = 1010,
                    press_meas = 1010,
-                   split_by_supersaturation = True
+                   split_by_supersaturation = True,
+                   plot_each_step = False
                    ):
     '''
     Loads CCNC data from raw csv files, concatenates, then saved to output 
@@ -215,26 +217,36 @@ DONE?        figure out file naming
     # Load data
     ccn_data = load_ccn(ccn_output_path,ccn_output_filetype)
     
+    plot_me(ccn_data, plot_each_step,'CCN Number Conc','raw')
+    
     # QC data for internal parameters and for changes in SS
     if QC:
         ccn_data = DataQC(ccn_data)
         save_as(ccn_data,ccn_output_path,'QC',ccn_output_filetype)
     
+    plot_me(ccn_data, plot_each_step,'CCN Number Conc', 'QC')
+    
     # Perform flow calibration if data is provided
     if flow_cal_file is not None: #xkcd Need to test!
         ccn_data = flow_cal(ccn_data,flow_cal_file,ccn_raw_path)
         save_as(ccn_data,ccn_output_path,'flowCal',ccn_output_filetype)
+        plot_me(ccn_data, plot_each_step,'CCN Number Conc','flow cal')
     elif flow_cal_df is not None:
         ccn_data = flow_cal(ccn_data,measured_flows_df=flow_cal_df)
         save_as(ccn_data,ccn_output_path,'flowCal',ccn_output_filetype)
+        plot_me(ccn_data, plot_each_step,'CCN Number Conc','flow cal')
+    
     
     # Calibrate supersaturation
     ccn_data = ss_cal(ccn_data, press_meas, press_cal)
     save_as(ccn_data,ccn_output_path,'ssCal',ccn_output_filetype)
     
+    
     # Correct for inlet losses #xkcd
 #    ccn_data = inlet_corrections(ccn_data, IE)
 #    save_as(ccn_data,ccn_output_data_path,'IE',ccn_output_filetype)
+#
+#   plot_me(ccn_data, plot_each_step,'CCN Number Conc', 'IE')
     
     # Separate into different supersaturations
     ccn_data = ss_split(ccn_data, split_by_supersaturation)
@@ -245,10 +257,13 @@ DONE?        figure out file naming
         ccn_data = atmoscripts.log_filter(ccn_data,
                                           ccn_raw_path,mask_period_file)
         save_as(ccn_data,ccn_output_path,'logFilt',ccn_output_filetype)
+        plot_me(ccn_data, plot_each_step,'CCN Number Conc','log filter')
     elif mask_period_timestamp_df is not None:
         ccn_data = atmoscripts.log_filter(ccn_data,
                                           log_mask_df=mask_period_timestamp_df)
         save_as(ccn_data,ccn_output_path,'logFilt',ccn_output_filetype)
+        plot_me(ccn_data, plot_each_step,'CCN Number Conc','log filter')
+        
         
     # Filter for exhaust
     
@@ -257,10 +272,22 @@ DONE?        figure out file naming
     # Resample timebase and calculate uncertainties
     ccn_data = timebase_resampler(ccn_data,time_int=output_time_resolution,
                       split_by_supersaturation = split_by_supersaturation)
-    
+    plot_me(ccn_data, plot_each_step,None,'SS Split')
     
     
     return
+
+def plot_me(ccn_data, plot_each_step, var=None, title = ''):
+    if plot_each_step:
+        if var is None:
+            # Plot everything
+            plt.plot(ccn_data)
+        else:
+            plt.plot(ccn_data[var])
+        plt.title(title)
+        plt.show()
+    return
+
 
 ###############################################################################
 ### File IO

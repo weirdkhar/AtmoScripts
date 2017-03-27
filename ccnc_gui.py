@@ -122,7 +122,8 @@ class ccn_processing(ttk.Frame):
                 flow_cal_df = flow_cal_df,
                 calibrate_for_pressure = self.cb_pressCal,
                 press_cal = float(self.tb_calPress.get()),
-                press_meas = float(self.tb_measPress.get())
+                press_meas = float(self.tb_measPress.get()),
+                plot_each_step = self.plotresults.get()
                 )
         
 ##-----------------------------------------------------------
@@ -466,6 +467,13 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
         self.lb_units2.pack(pady=5,padx=10, side=tk.RIGHT)
         
         
+        self.plotresults = tk.IntVar()
+        self.cb_plot = tk.Checkbutton(self.f3,
+                                      text = 'Plot after each step',
+                                      variable = self.plotresults,
+                                      onvalue = True, offvalue = False)
+        self.cb_plot.pack()
+        
         # Create go button!
         self.bt_go = tk.Button(self.f3,
                        text='GO!',
@@ -475,7 +483,7 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
                        font = 'Times 18 bold',
                        width = 15)
         self.bt_go.pack(side=tk.BOTTOM)
-        self.bt_go.place(rely=0.87, relx=0.25)
+        self.bt_go.place(rely=0.89, relx=0.25)
 
 
 ##-----------------------------------------------------------
