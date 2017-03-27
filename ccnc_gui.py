@@ -18,7 +18,6 @@ from tkinter import filedialog
 from tkinter import ttk
 
 
-
 class ccn_processing(ttk.Frame):
  
     
@@ -505,14 +504,18 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
 ##-----------------------------------------------------------
 ## Processing status window
 ##-----------------------------------------------------------
+    
+
+
     def _build_status_window(self):
+        # xkcd - need to get the status window updating
         self.w_status = tk.Toplevel()
         self.w_status.title('CCN Processing Status')
         self.w_status.geometry("400x500")
         
-        self.w_status.lb_status = tk.Listbox(self.w_status)
-        self.w_status.lb_status.pack(pady=5, fill='both')
-        self.w_status.lb_status.place(relx=0.01,rely=0.01,relheight=0.9,relwidth=0.98)
+        self.w_status.txt_status = tk.Text(self.w_status)
+        self.w_status.txt_status.pack(pady=5, fill='both')
+        self.w_status.txt_status.place(relx=0.01,rely=0.01,relheight=0.9,relwidth=0.98)
         
         bt_interupt = tk.Button(self.w_status,
                              text='Interupt', 
