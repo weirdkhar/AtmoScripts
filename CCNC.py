@@ -1105,18 +1105,3 @@ def timebase_resampler(
 if __name__ == '__main__': 
 	main()
     
-''' Testing script to run it in spyder for debugging ''' 
-LoadAndProcess('h:\\test_data\\',
-               concat_file_frequency = 'all',
-               QC = True,
-               reload_from_source = False,
-               log_filt_file = 'log_filt.csv' )
-'''               ccn_output_data_path = 'r:\\RV_Investigator\\in2016_v03\\voyage_specific\\ccnc\\'
-               )
-   ccn_output_filetype,
-                   timeResolution = output_time_resolution,
-                   concat_file_frequency = output_file_frequency,
-                   filtOrRaw = filtOrRaw,
-                   flow_cal_file = flow_cal_file
-                   )
-            '''
