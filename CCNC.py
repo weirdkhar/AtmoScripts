@@ -190,14 +190,14 @@ def LoadAndProcess(ccn_raw_path,
     If requested, it will perform exhaust removal (assuming its on the RVI)
     
         Things to do: #xkcd
-        Change time resolution to deal with a matrix input
-        enable force reload from source
-        split_by_supersaturation
+DONE        Change time resolution to deal with a matrix input
+DONE        enable force reload from source
+DONE        split_by_supersaturation
 DONE        deal with a mask_df
 DONE        deal with a flowcal_df
-        pressure calibrations
+DONE        pressure calibrations
         calculate uncertainties
-        figure out file naming
+DONE?        figure out file naming
     '''
     if ccn_output_path is None:
         ccn_output_path = ccn_raw_path
@@ -234,7 +234,7 @@ DONE        deal with a flowcal_df
 #    save_as(ccn_data,ccn_output_data_path,'IE',ccn_output_filetype)
     
     # Separate into different supersaturations
-    ccn_data = ss_split(ccn_data)
+    ccn_data = ss_split(ccn_data, split_by_supersaturation)
     save_as(ccn_data,ccn_output_path,'ss_split',ccn_output_filetype)
         
     # Filter for logged events
@@ -243,11 +243,12 @@ DONE        deal with a flowcal_df
         
     # Filter for exhaust
     
-    save_as(ccn_data,ccn_output_path,'exhaustfilt',ccn_output_filetype)
+#    save_as(ccn_data,ccn_output_path,'exhaustfilt',ccn_output_filetype)
     
-    # Resample to hourly data and calculate uncertainties
+    # Resample timebase and calculate uncertainties
+    ccn_data = timebase_resampler(ccn_data,time_int=output_time_resolution,
+                      split_by_supersaturation = split_by_supersaturation)
     
-    save_as(ccn_data,ccn_output_path,'hourly',ccn_output_filetype)
     
     
     return
@@ -720,16 +721,18 @@ def load_basic_csv(filename = None, path = None, file_FULLPATH=None):
     
     return df
 
-def load_manual_mask(filename = None, path = None, file_FULLPATH=None):
-    '''
-    Loads manual mask data (i.e. start & end timestamps and event description)
-    from file. There is an assumption that the mask file (in csv) has 
-    been created using excel from data extracted from the text log file.
-    Input either the full path to the filename, or the folder path and the 
-    filename
-    '''
-    df = load_basic_csv(filename, path, file_FULLPATH)
-    return df
+
+# CURRENTLY THIS ISN'T BEING USED
+#def load_manual_mask(filename = None, path = None, file_FULLPATH=None):
+#    '''
+#    Loads manual mask data (i.e. start & end timestamps and event description)
+#    from file. There is an assumption that the mask file (in csv) has 
+#    been created using excel from data extracted from the text log file.
+#    Input either the full path to the filename, or the folder path and the 
+#    filename
+#    '''
+#    df = load_basic_csv(filename, path, file_FULLPATH)
+#    return df
     
 def load_flow_cals(filename = None, path = None, file_FULLPATH=None):
     '''
@@ -920,7 +923,7 @@ def flow_cal(data,
     '''
     
     # Load data from file if required:
-    if flow_cal_filename is not None:
+    if measured_flows_df is None:
         # Assume we're already in the required directory if the path isn't 
         # provided
         measured_flows_df = load_flow_cals(flow_cal_filename, flow_cal_path)
@@ -939,28 +942,31 @@ def flow_cal(data,
     
     return data
 
-def ss_split(data):
+def ss_split(data, split_by_supersaturation = True):
     '''
     Splits the data based on its supersaturation value and removes the 
     transition periods when supersaturations haven't stabilised. 
     '''
-    # Get a list of the supersaturations in the file:
-    ss_list = data['Current SS'].unique()
+    if split_by_supersaturation:
+        # Get a list of the supersaturations in the file:
+        ss_list = data['Current SS'].unique()
+            
+        d={} #Initialise
+        for ss in ss_list:
+            if not np.isnan(ss):
+                # Create a dictionary to store each separated SS
+                d['ccn_' + str(ss)] = data[data['Current SS'] == ss][[\
+                                 'CCN Number Conc'\
+                                 ]]
+        # Concatenate each df in the dictionary
+        split_data = pd.concat(d,axis=1)
         
-    d={} #Initialise
-    for ss in ss_list:
-        if not np.isnan(ss):
-            # Create a dictionary to store each separated SS
-            d['ccn_' + str(ss)] = data[data['Current SS'] == ss][[\
-                             'CCN Number Conc'\
-                             ]]
-    # Concatenate each df in the dictionary
-    split_data = pd.concat(d,axis=1)
-    
-    # Remove multi-indexing
-    split_data.columns = split_data.columns.get_level_values(0)
-    
-    return split_data
+        # Remove multi-indexing
+        split_data.columns = split_data.columns.get_level_values(0)
+        
+        return split_data
+    else:
+        return data
 
 def ss_transition_removal(data):
     '''
@@ -1029,19 +1035,12 @@ def timebase_resampler(
                       RawDataPath='',
                       input_h5_filename='',
                       variable='CCN',
-                      time_int='default'
+                      time_int='default',
+                      split_by_supersaturation = True
                       ):
     ''' 
     Time resampling
-    
-    xkcd - need to adjust this to deal with an array of outputs
     '''
-    if time_int == '1S':
-        print('No timebase resampling performed. Output base 1 second')
-        return # no resampling required!
-
-    
-    
     #if no data provided, try to load from file
     if not isinstance(data, pd.DataFrame):
         if (not RawDataPath == '') & (not input_h5_filename == ''):
@@ -1058,62 +1057,82 @@ def timebase_resampler(
     if time_int == 'default':
         time_int = ['5S','1Min', '5Min', '10Min', \
                     '30Min', '1H', '3H', '6H', '12H', '1D']    
+    elif type(time_int[0]) == bool:
+        from itertools import compress
+        gui_time_options = ['1S','5S','10S','15S','30S',
+                             '1Min','5Min','10Min','15Min','30Min',
+                             '1H','3H','6H','12H','1D']
+        time_int = list(compress(gui_time_options, time_int))
     
     
     # define MAD calculation
     mad = lambda x: np.fabs(x - x.median()).median() 
     
-    # define time resampling intervals
-    i_lim = len(time_int)
-    sub = data.iloc[:,24:44].copy()
-    sub_ccn = data['CCN Number Conc'].copy()
-    for i in range(0, i_lim):
-        t_int = time_int[i]    
-        # Initialise    
-        data_resamp = sub.resample(t_int,fill_method=None).median()
-        data_resamp['ccn_count'] = sub_ccn.resample(t_int,
-                                                    fill_method=None).count()
-        data_resamp['ccn_med'] = sub_ccn.resample(t_int,
-                                                  fill_method=None).median()
-        data_resamp['ccn_mad'] = sub_ccn.resample(t_int,
-                                                  fill_method=None).apply(mad)
-        data_resamp['ccn_avg'] = sub_ccn.resample(t_int,
-                                                  fill_method=None).mean()
-        data_resamp['ccn_std'] = sub_ccn.resample(t_int,
-                                                  fill_method=None).std()
+    if split_by_supersaturation:
+        # Different data format to default
+        assert False, 'xkcd Need to write this code, timebase_resampler function'
         
-        # Rename the cloud droplet bins so they make sense when the 
-        # full data is merged
-        data_resamp.rename(columns={'Bin 1': 'CDN Bin 1',
-                                    'Bin 2': 'CDN Bin 2',
-                                    'Bin 3': 'CDN Bin 3',
-                                    'Bin 4': 'CDN Bin 4',
-                                    'Bin 5': 'CDN Bin 5',
-                                    'Bin 6': 'CDN Bin 6',
-                                    'Bin 7': 'CDN Bin 7',
-                                    'Bin 8': 'CDN Bin 8',
-                                    'Bin 9': 'CDN Bin 9',
-                                    'Bin 10': 'CDN Bin 10',
-                                    'Bin 11': 'CDN Bin 11',
-                                    'Bin 12': 'CDN Bin 12',
-                                    'Bin 13': 'CDN Bin 13',
-                                    'Bin 14': 'CDN Bin 14',
-                                    'Bin 15': 'CDN Bin 15',
-                                    'Bin 16': 'CDN Bin 16',
-                                    'Bin 17': 'CDN Bin 17',
-                                    'Bin 18': 'CDN Bin 18',
-                                    'Bin 19': 'CDN Bin 19',
-                                    'Bin 20': 'CDN Bin 20'},
-                           inplace=True)
-        
-        # Save to file
-        if isinstance(data,pd.DataFrame):        
-            outputfilename = variable+'_'+time_int[i]+'.h5'
-        else:
-            outputfilename = input_h5_filename+'_'+ time_int[i] +'.h5'
-        data_resamp.to_hdf(outputfilename, key=variable)
+    else:
+    
+        # define time resampling intervals
+        i_lim = len(time_int)
+        sub = data.iloc[:,24:44].copy()
+        sub_ccn = data['CCN Number Conc'].copy()
+        for i in range(0, i_lim):
+            t_int = time_int[i]    
+            # Initialise
+                    
+            data_resamp = sub.resample(t_int,fill_method=None).median()
+            data_resamp['ccn_count'] = sub_ccn.resample(t_int,
+                                                        fill_method=None).count()
+            data_resamp['ccn_med'] = sub_ccn.resample(t_int,
+                                                      fill_method=None).median()
+            data_resamp['ccn_mad'] = sub_ccn.resample(t_int,
+                                                      fill_method=None).apply(mad)
+            data_resamp['ccn_avg'] = sub_ccn.resample(t_int,
+                                                      fill_method=None).mean()
+            data_resamp['ccn_std'] = sub_ccn.resample(t_int,
+                                                      fill_method=None).std()
+            
+            # Rename the cloud droplet bins so they make sense when the 
+            # full data is merged
+            data_resamp.rename(columns={'Bin 1': 'CDN Bin 1',
+                                        'Bin 2': 'CDN Bin 2',
+                                        'Bin 3': 'CDN Bin 3',
+                                        'Bin 4': 'CDN Bin 4',
+                                        'Bin 5': 'CDN Bin 5',
+                                        'Bin 6': 'CDN Bin 6',
+                                        'Bin 7': 'CDN Bin 7',
+                                        'Bin 8': 'CDN Bin 8',
+                                        'Bin 9': 'CDN Bin 9',
+                                        'Bin 10': 'CDN Bin 10',
+                                        'Bin 11': 'CDN Bin 11',
+                                        'Bin 12': 'CDN Bin 12',
+                                        'Bin 13': 'CDN Bin 13',
+                                        'Bin 14': 'CDN Bin 14',
+                                        'Bin 15': 'CDN Bin 15',
+                                        'Bin 16': 'CDN Bin 16',
+                                        'Bin 17': 'CDN Bin 17',
+                                        'Bin 18': 'CDN Bin 18',
+                                        'Bin 19': 'CDN Bin 19',
+                                        'Bin 20': 'CDN Bin 20'},
+                               inplace=True)
+            
+            # Save to file
+            save_resampled_data(data,data_resamp,time_int[i],
+                                variable,input_h5_filename)
     
     return data_resamp
+
+def save_resampled_data(data, data_resamp,time_int,ext,
+                        variable = None, input_h5_filename = None):
+    if isinstance(data,pd.DataFrame):        
+                outputfilename = variable+'_'+time_int+'.h5'
+    else:
+        outputfilename = input_h5_filename+'_'+ time_int +'.h5'
+    data_resamp.to_hdf(outputfilename, key=variable)
+    
+    return
 
 # if this script is run at the command line, run the main script   
 if __name__ == '__main__': 
