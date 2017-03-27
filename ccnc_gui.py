@@ -241,8 +241,10 @@ class ccn_processing(ttk.Frame):
         self.cb_forceReload = tk.Checkbutton(self.f1,
                                         text="Force reload from source",
                                         variable = self.forceReload)
+        self.cb_forceReload.select()
         self.cb_forceReload.pack(pady=5,padx=10,side=tk.TOP)
         self.cb_forceReload.place(relx=0.52,rely=0.02)
+        
         
     def _create_output_frame(self):
         self.f2 = ttk.LabelFrame(mainFrame, text = 'Output data')
