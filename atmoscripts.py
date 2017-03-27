@@ -16,7 +16,9 @@ import os
 # Developed utilising info from http://schubert.atmos.colostate.edu/~cslocum/netcdf_example.html
 # and http://salishsea-meopar-tools.readthedocs.io/en/latest/netcdf4/
 
-def log_filter(data, raw_data_path = None, log_filename= None):
+def log_filter(data, 
+               raw_data_path = None, log_filename= None, 
+               log_mask_df = None):
     '''
     Function to remove data based on the logged events. The log must be
     formatted as a csv file with the first and second columns as the 
@@ -25,31 +27,34 @@ def log_filter(data, raw_data_path = None, log_filename= None):
     removed) is ignored. Timestamps must be formatted as:
          yyyy-mm-dd HH:SS:MM
     '''
-    if os.path.exists(log_filename):
-        # if a full path is provided
-        log_mask = pd.read_csv(log_filename)
-    else: 
-        assert raw_data_path is not None, 'No path provided for mask filter' 
-        assert log_filename is not None, 'No filename provided for mask filter'
-        assert os.path.exists(log_filename), 'Specified mask filter file does \
-                                                not exist'
-        # the filename and folder are provided separately.    
-        os.chdir(raw_data_path)
-        # Load file 
-        log_mask = pd.read_csv(log_filename)
-            
-    
-    # check whether there is a header or not
-    try: # check if the loaded header is actually a date
-        pd.to_datetime(log_mask.columns[0])
-        # if it is, reload the data using the header option
-        log_mask = pd.read_csv(log_filename, 
-                               header = None, 
-                               names = ['start','end', '']
-                               )
-    except ValueError:
-        # rename first two columns
-        log_mask.columns = ['start','end','']
+    if log_mask_df is None:
+        if os.path.exists(log_filename):
+            # if a full path is provided
+            log_mask = pd.read_csv(log_filename)
+        else: 
+            assert raw_data_path is not None, 'No path provided for mask filter' 
+            assert log_filename is not None, 'No filename provided for mask filter'
+            assert os.path.exists(log_filename), 'Specified mask filter file does \
+                                                    not exist'
+            # the filename and folder are provided separately.    
+            os.chdir(raw_data_path)
+            # Load file 
+            log_mask = pd.read_csv(log_filename)
+                
+        
+        # check whether there is a header or not
+        try: # check if the loaded header is actually a date
+            pd.to_datetime(log_mask.columns[0])
+            # if it is, reload the data using the header option
+            log_mask = pd.read_csv(log_filename, 
+                                   header = None, 
+                                   names = ['start','end', '']
+                                   )
+        except ValueError:
+            # rename first two columns
+            log_mask.columns = ['start','end','']
+    else:
+        log_mask = log_mask_df
             
     # Parse timestamps
     log_mask.iloc[:,0] = pd.to_datetime(log_mask.iloc[:,0])
