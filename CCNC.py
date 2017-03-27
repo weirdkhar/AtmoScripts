@@ -1081,26 +1081,29 @@ def timebase_resampler(
         # Different data format to default
         
         for time in time_int:
-            data_resamp = data.resample(time,fill_method=None).count()
-            new_col_names = [data_resamp.columns + '_count' 
-                             for s in data_resamp.columns]
-            data_resamp.columns = new_col_names
-            for column in data.columns:
-                sub_ccn = data[column].copy()
-    
-                data_resamp[column+'_med'] = \
-                        sub_ccn.resample(time,fill_method=None).median()
-                data_resamp[column+'_mad'] = \
-                        sub_ccn.resample(time,fill_method=None).apply(mad)
-                data_resamp[column+'_avg'] = \
-                        sub_ccn.resample(time,fill_method=None).mean()
-                data_resamp[column+'_std'] = \
-                        sub_ccn.resample(time,fill_method=None).std()
-            
-            # Save to file
-            save_resampled_data(data,data_resamp,time,
-                                variable,input_h5_filename)
-            
+            if time != '1S':
+                data_resamp = data.resample(time,fill_method=None).median()
+                new_col_names = [s + '_med' for s in data_resamp.columns]
+                data_resamp.columns = new_col_names
+                for column in data.columns:
+                    sub_ccn = pd.DataFrame(data[column].copy())
+        
+                    data_resamp[column+'_mad'] = \
+                            sub_ccn.resample(time,fill_method=None).apply(mad)
+                    data_resamp[column+'_avg'] = \
+                            sub_ccn.resample(time,fill_method=None).mean()
+                    data_resamp[column+'_std'] = \
+                            sub_ccn.resample(time,fill_method=None).std()
+                    data_resamp[column+'_count'] = \
+                            sub_ccn.resample(time,fill_method=None).count()
+                
+                # Reorder columns based on name:
+                data_resamp.sort_index(axis=1)
+                
+                # Save to file
+                save_resampled_data(data,data_resamp,time,
+                                    variable,input_h5_filename)
+                
     else:
     
         # define time resampling intervals
@@ -1153,10 +1156,10 @@ def timebase_resampler(
     
     return data_resamp
 
-def save_resampled_data(data, data_resamp,time_int,ext,
+def save_resampled_data(data, data_resamp,time_int,
                         variable = None, input_h5_filename = None):
     if isinstance(data,pd.DataFrame):        
-                outputfilename = variable+'_'+time_int+'.h5'
+        outputfilename = variable+'_'+time_int+'.h5'
     else:
         outputfilename = input_h5_filename+'_'+ time_int +'.h5'
     data_resamp.to_hdf(outputfilename, key=variable)
