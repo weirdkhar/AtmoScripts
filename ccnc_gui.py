@@ -107,7 +107,7 @@ class ccn_processing(ttk.Frame):
         print("Loading data from file")
         
         
-        ''' UNCOMMENT WHEN FINISHED DEBUGGING
+#        ''' UNCOMMENT WHEN FINISHED DEBUGGING
         t = threading.Thread(target = self.loadAndProcess_Multithread,
                              args=(output_filetype,
                                    output_time_res,
@@ -123,7 +123,7 @@ class ccn_processing(ttk.Frame):
                                concat_file_freq,
                                mask_df,
                                flow_cal_df):
-        '''
+#        '''
         # Call processing function
         CCNC.LoadAndProcess(
                 ccn_raw_path = self.raw_path, 
@@ -541,10 +541,17 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
         self.w_status.geometry("800x500")
         
         self.w_status.txt_status = tk.Text(self.w_status, wrap='word')
-        self.w_status.txt_status.pack(pady=5, fill='both', expand=True)
-        self.w_status.txt_status.place(relx=0.01,rely=0.01,
-                                       relheight=0.9,relwidth=0.98)
+        self.w_status.sb_status = tk.Scrollbar(self.w_status)
+        self.w_status.txt_status.pack(pady=5, side=tk.LEFT,fill='both', expand=True)
+#        self.w_status.txt_status.place(relx=0.01,rely=0.01,
+#                                       relheight=0.9,relwidth=0.98)
         
+        self.w_status.sb_status.pack(pady=5,side=tk.LEFT, fill='y')
+        
+        # Attach listbox to scrollbar
+        self.w_status.txt_status.config(yscrollcommand=self.w_status.sb_status.set)
+        self.w_status.sb_status.config(command=self.w_status.txt_status.yview)
+       
 #        bt_interupt = tk.Button(self.w_status,
 #                             text='Interupt', 
 #                             command=self.interupt,
@@ -556,8 +563,7 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
         self.w_status.txt_status.tag_configure("stderr", foreground="#b22222")
         sys.stdout = TextRedirector(self.w_status.txt_status,"stdout")
         sys.stderr = TextRedirector(self.w_status.txt_status,"stderr")
-        
-
+       
 #    def interupt(self):
 #        '''
 #        Stops the execution 
@@ -622,7 +628,8 @@ class TextRedirector(object):
     def write(self, str):
         self.widget.configure(state="normal")
         self.widget.insert("end", str, (self.tag,))
-        self.widget.configure(state="disabled")       
+        self.widget.configure(state="disabled")
+        self.widget.see(tk.END) # Scroll with text
         
 if __name__ == '__main__':
     ccn_processing().mainloop()
