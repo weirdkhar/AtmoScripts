@@ -1180,8 +1180,11 @@ def timebase_resampler(
             # Save to file
             save_resampled_data(data,data_resamp,time_int[i],
                                 variable,input_h5_filename)
+    try:
+        return data_resamp
+    except:
+        return data
     
-    return data_resamp
 
 def save_resampled_data(data, data_resamp,time_int,
                         variable = None, input_h5_filename = None):
