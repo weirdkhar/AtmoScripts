@@ -91,12 +91,12 @@ class ccn_processing(ttk.Frame):
             self.destroy()
         
         try:
-            flow_cal_df = CCNC.load_flow_cals(self.flowcal_file)
+            flow_cal_df = CCNC.load_flow_cals(file_FULLPATH=self.flowcal_file)
         except:
             flow_cal_df = None
             
         try:
-            mask_df = CCNC.load_manual_mask(self.mask_file)
+            mask_df = CCNC.load_manual_mask(file_FULLPATH=self.mask_file)
         except:
             mask_df = None
         

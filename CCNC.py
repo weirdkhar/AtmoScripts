@@ -758,17 +758,17 @@ def load_basic_csv(filename = None, path = None, file_FULLPATH=None):
     return df
 
 
-# CURRENTLY THIS ISN'T BEING USED
-#def load_manual_mask(filename = None, path = None, file_FULLPATH=None):
-#    '''
-#    Loads manual mask data (i.e. start & end timestamps and event description)
-#    from file. There is an assumption that the mask file (in csv) has 
-#    been created using excel from data extracted from the text log file.
-#    Input either the full path to the filename, or the folder path and the 
-#    filename
-#    '''
-#    df = load_basic_csv(filename, path, file_FULLPATH)
-#    return df
+
+def load_manual_mask(filename = None, path = None, file_FULLPATH=None):
+    '''
+    Loads manual mask data (i.e. start & end timestamps and event description)
+    from file. There is an assumption that the mask file (in csv) has 
+    been created using excel from data extracted from the text log file.
+    Input either the full path to the filename, or the folder path and the 
+    filename
+    '''
+    df = load_basic_csv(filename, path, file_FULLPATH)
+    return df
     
 def load_flow_cals(filename = None, path = None, file_FULLPATH=None):
     '''
@@ -779,6 +779,8 @@ def load_flow_cals(filename = None, path = None, file_FULLPATH=None):
     filename
     '''
     df = load_basic_csv(filename, path, file_FULLPATH)
+    df = df.set_index(df.columns[0])
+    df.columns = ['flow rate']
     return df
 
 def get_week_label(filelist):
@@ -966,11 +968,11 @@ def flow_cal(data,
     
     
     # Convert dates to seconds since 1 Jan 2000
-    x = (measured_flows_df.index - \
+    x = (pd.to_datetime(measured_flows_df.index) - \
          pd.to_datetime('2000-01-01 00:00:00')).total_seconds()
     y = measured_flows_df['flow rate']
     p = np.poly1d(np.polyfit(x,y,deg=polydeg))
-    x_data = (data.index - \
+    x_data = (pd.to_datetime(data.index) - \
               pd.to_datetime('2000-01-01 00:00:00')).total_seconds()
 
     data['CCN Number Conc'] = data['CCN Number Conc']/set_flow_rate*p(x_data)
