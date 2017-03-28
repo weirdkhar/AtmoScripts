@@ -140,7 +140,8 @@ class ccn_processing(ttk.Frame):
                 calibrate_for_pressure = self.cb_pressCal,
                 press_cal = float(self.tb_calPress.get()),
                 press_meas = float(self.tb_measPress.get()),
-                plot_each_step = self.plotresults.get()
+                plot_each_step = self.plotresults.get(),
+                input_filelist = list(self.files_raw)
                 )
         
         self.finished_window()

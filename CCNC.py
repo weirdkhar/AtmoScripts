@@ -164,7 +164,7 @@ def main():
     return
     
     
-def LoadAndProcess(ccn_raw_path, 
+def LoadAndProcess(ccn_raw_path = None, 
                    ccn_output_path = None,
                    ccn_output_filetype = 'hdf',
                    filename_base = 'CCN', 
@@ -182,7 +182,8 @@ def LoadAndProcess(ccn_raw_path,
                    press_cal = 1010,
                    press_meas = 1010,
                    split_by_supersaturation = True,
-                   plot_each_step = False
+                   plot_each_step = False,
+                   input_filelist = None
                    ):
     '''
     Loads CCNC data from raw csv files, concatenates, then saved to output 
@@ -199,13 +200,15 @@ def LoadAndProcess(ccn_raw_path,
         ccn_output_path = ccn_raw_path
     
     # Concatenate csv files
-    concatenate_from_csv(ccn_raw_path,
+    concatenate_from_csv(
+                         ccn_raw_path,
                          ccn_output_path,
                          filename_base,
                          None, # Don't resample timebase at this point
                          concat_file_frequency,
                          ccn_output_filetype,
-                         force_reload_from_source
+                         force_reload_from_source,
+                         input_filelist=input_filelist
                          )
     
     # Load data
@@ -321,11 +324,12 @@ def Load_to_NetCDF(
     return
 
 def Load_to_HDF(
-                RawDataPath,
+                RawDataPath = None,
                 DestDataPath=None,
                 output_h5_filename = 'CCNC', 
                 resample_timebase = None, 
-                concat_file_frequency = 'all'
+                concat_file_frequency = 'all',
+                input_filelist = None
                 ):
     '''
 	Load data from CSV files, concatenate and write to h5 file
@@ -340,9 +344,11 @@ def Load_to_HDF(
     
     
     if not glob.glob('*.h5'): 
-        
-        os.chdir(RawDataPath)
-        filelist = glob.glob('*.csv')
+        if input_filelist is None:
+            os.chdir(RawDataPath)
+            filelist = glob.glob('*.csv')
+        else:
+            filelist = input_filelist
         filelist.sort()
         
         filelist_df = pd.DataFrame(filelist, columns=['filenames'])
@@ -538,13 +544,14 @@ def concatenate_from_csv(
                     resample_timebase = '1S',
                     concat_file_frequency = 'all',
                     CCN_output_filetype='hdf',
-                    reload_from_source = True
+                    reload_from_source = True,
+                    input_filelist= None
                     ):
     '''
     Loads all the data from the csv file and saves them in either netCDF or h5
     formatted data files.
     '''
-    os.chdir(CCN_raw_path)
+    os.chdir(CCN_output_path)
     
     if CCN_output_filetype == 'netcdf':
         filelist_empty = check_filelist('.nc', reload_from_source)
@@ -557,7 +564,8 @@ def concatenate_from_csv(
                         CCN_output_path,
                         output_h5_filename = output_h5_filename,
                         resample_timebase = resample_timebase,
-                        concat_file_frequency = concat_file_frequency)
+                        concat_file_frequency = concat_file_frequency,
+                        input_filelist=input_filelist)
     return
 
 def read_ccn_csv(filelist):
