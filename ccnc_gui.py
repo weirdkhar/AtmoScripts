@@ -126,6 +126,10 @@ class ccn_processing(ttk.Frame):
                 plot_each_step = self.plotresults.get()
                 )
         
+        self.finished_window()
+        self.w_status.destroy()
+        
+        
 ##-----------------------------------------------------------
 ## GUI Functionality
 ##-----------------------------------------------------------        
@@ -567,9 +571,12 @@ to launch the program again"""
         sys.exit(0)
         
     def interupt_no(self):
-        self.interupt_check.destroy()
+        self.w_interupt_check.destroy()
 
-
+    def finished_window(self):
+        from tkinter import messagebox
+        messagebox.showinfo("Done!","Processing completed!")
+        
         
         
 if __name__ == '__main__':
