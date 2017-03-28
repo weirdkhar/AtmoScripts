@@ -16,12 +16,9 @@ import tkinter as tk
 #from tkinter import *
 from tkinter import filedialog
 from tkinter import ttk
-
+import threading
 
 class ccn_processing(ttk.Frame):
- 
-    
-    
     
     def load_and_process(self):
         '''
@@ -107,6 +104,26 @@ class ccn_processing(ttk.Frame):
         else:
             output_filetype = 'csv'
         
+        print("Loading data from file")
+        
+        
+        ''' UNCOMMENT WHEN FINISHED DEBUGGING
+        t = threading.Thread(target = self.loadAndProcess_Multithread,
+                             args=(output_filetype,
+                                   output_time_res,
+                                   concat_file_freq,
+                                   mask_df,
+                                   flow_cal_df)
+                             )
+        t.start()        
+
+    def loadAndProcess_Multithread(self,
+                               output_filetype,
+                               output_time_res, 
+                               concat_file_freq,
+                               mask_df,
+                               flow_cal_df):
+        '''
         # Call processing function
         CCNC.LoadAndProcess(
                 ccn_raw_path = self.raw_path, 
@@ -127,8 +144,7 @@ class ccn_processing(ttk.Frame):
                 )
         
         self.finished_window()
-        self.w_status.destroy()
-        
+
         
 ##-----------------------------------------------------------
 ## GUI Functionality
@@ -489,6 +505,7 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
         self.bt_go.pack(side=tk.BOTTOM)
         self.bt_go.place(rely=0.89, relx=0.25)
 
+    
 
 ##-----------------------------------------------------------
 ## Variable check window
@@ -516,68 +533,95 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
 ##-----------------------------------------------------------
 ## Processing status window
 ##-----------------------------------------------------------
-    
-
-
     def _build_status_window(self):
         # xkcd - need to get the status window updating
         self.w_status = tk.Toplevel()
         self.w_status.title('CCN Processing Status')
-        self.w_status.geometry("400x500")
+        self.w_status.geometry("800x500")
         
-        self.w_status.txt_status = tk.Text(self.w_status)
-        self.w_status.txt_status.pack(pady=5, fill='both')
-        self.w_status.txt_status.place(relx=0.01,rely=0.01,relheight=0.9,relwidth=0.98)
+        self.w_status.txt_status = tk.Text(self.w_status, wrap='word')
+        self.w_status.txt_status.pack(pady=5, fill='both', expand=True)
+        self.w_status.txt_status.place(relx=0.01,rely=0.01,
+                                       relheight=0.9,relwidth=0.98)
         
-        bt_interupt = tk.Button(self.w_status,
-                             text='Interupt', 
-                             command=self.interupt,
-                             bg='red',
-                             fg='white'
-                             )
-        bt_interupt.pack(pady=10, side=tk.BOTTOM)
+#        bt_interupt = tk.Button(self.w_status,
+#                             text='Interupt', 
+#                             command=self.interupt,
+#                             bg='red',
+#                             fg='white'
+#                             )
+#        bt_interupt.pack(pady=10, side=tk.BOTTOM)
+        
+        self.w_status.txt_status.tag_configure("stderr", foreground="#b22222")
+        sys.stdout = TextRedirector(self.w_status.txt_status,"stdout")
+        sys.stderr = TextRedirector(self.w_status.txt_status,"stderr")
+        
 
-    def interupt(self):
-        '''
-        Stops the execution 
-        '''
-        self.w_interupt_check = tk.Toplevel()
-        self.w_interupt_check.title('Cancel processing')
-        
-        l1 = tk.Label(self.w_interupt_check,
-                      text='Are you sure you want to exit?') 
-        l2 = tk.Label(self.w_interupt_check,
-                      text="""This will exit the program and you will have 
-to launch the program again"""
-                      )
-        l1.pack()
-        l2.pack()
-        
-        bt_y = tk.Button(self.w_interupt_check,
-                      text="Yes, get me out of here!",
-                      command=self.interupt_yes,
-                      bg='red',
-                      fg='white')
-        bt_n = tk.Button(self.w_interupt_check,
-                      text="No, please continue",
-                      command=self.interupt_no,
-                      bg='green',
-                      fg='white')
-        bt_y.pack(side=tk.LEFT,padx=60,pady=5)
-        bt_n.pack(side=tk.LEFT,padx=60,pady=5)
-        
-        
-    def interupt_yes(self):
-        sys.exit(0)
-        
-    def interupt_no(self):
-        self.w_interupt_check.destroy()
+#    def interupt(self):
+#        '''
+#        Stops the execution 
+#        '''
+#        self.w_interupt_check = tk.Toplevel()
+#        self.w_interupt_check.title('Cancel processing')
+#        
+#        l1 = tk.Label(self.w_interupt_check,
+#                      text='Are you sure you want to exit?') 
+#        l2 = tk.Label(self.w_interupt_check,
+#                      text="""This will exit the program and you will have 
+#to launch the program again"""
+#                      )
+#        l1.pack()
+#        l2.pack()
+#        
+#        bt_y = tk.Button(self.w_interupt_check,
+#                      text="Yes, get me out of here!",
+#                      command=self.interupt_yes,
+#                      bg='red',
+#                      fg='white')
+#        bt_n = tk.Button(self.w_interupt_check,
+#                      text="No, please continue",
+#                      command=self.interupt_no,
+#                      bg='green',
+#                      fg='white')
+#        bt_y.pack(side=tk.LEFT,padx=60,pady=5)
+#        bt_n.pack(side=tk.LEFT,padx=60,pady=5)
+#        
+#        
+#    def interupt_yes(self):
+#        sys.exit(0)
+#        
+#    def interupt_no(self):
+#        self.w_interupt_check.destroy()
+
 
     def finished_window(self):
-        from tkinter import messagebox
-        messagebox.showinfo("Done!","Processing completed!")
+        self.w_finished = tk.Toplevel()
+        self.w_finished.title("All finished")
+        self.w_finished.geometry("300x200")
+        txt = tk.Message(self.w_finished,
+                         text = "Processing completed!",
+                         justify=tk.CENTER)
+        txt.pack()
+        bt_ok = tk.Button(self.w_finished,
+                          text="OK",
+                          command=self.finish)
+        bt_ok.pack()
         
+    def finish(self):
+        self.w_finished.destroy()
+        self.w_status.destroy()
         
+class TextRedirector(object):
+    # Taken from 
+    # http://stackoverflow.com/questions/12351786/python-converting-cli-to-gui
+    def __init__(self, widget, tag="stdout"):
+        self.widget = widget
+        self.tag = tag
+
+    def write(self, str):
+        self.widget.configure(state="normal")
+        self.widget.insert("end", str, (self.tag,))
+        self.widget.configure(state="disabled")       
         
 if __name__ == '__main__':
     ccn_processing().mainloop()

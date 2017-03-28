@@ -16,7 +16,11 @@ Search for "xkcd" to find sections of the code that need attention
     Things to do:
         - simplify the execution functions (breaking up into readable chunks)
         - write netcdf writing function
+        - write csv writing function
         - check that you are utilising the functions already written!
+        - fix performance warning in loading csv files
+        - ccnc status window
+        - calculate uncertainties (counting stats, flow uncertainties, inlet efficiency uncertainties)
         
 
 """
@@ -32,7 +36,7 @@ import RVI_Underway
 import datetime
 import argparse
 import matplotlib.pyplot as plt
-
+pd.set_option('io.hdf.default_format','table')
 
 def main():
     '''
@@ -190,16 +194,6 @@ def LoadAndProcess(ccn_raw_path,
     If a file is provided containing logged events for filtering, it will 
     remove these periods
     If requested, it will perform exhaust removal (assuming its on the RVI)
-    
-        Things to do: #xkcd
-DONE        Change time resolution to deal with a matrix input
-DONE        enable force reload from source
-DONE        split_by_supersaturation
-DONE        deal with a mask_df
-DONE        deal with a flowcal_df
-DONE        pressure calibrations
-        calculate uncertainties
-DONE?        figure out file naming
     '''
     if ccn_output_path is None:
         ccn_output_path = ccn_raw_path
@@ -248,10 +242,6 @@ DONE?        figure out file naming
 #
 #   plot_me(ccn_data, plot_each_step,'CCN Number Conc', 'IE')
     
-    # Separate into different supersaturations
-    ccn_data = ss_split(ccn_data, split_by_supersaturation)
-    save_as(ccn_data,ccn_output_path,'ssSplit',ccn_output_filetype)
-        
     # Filter for logged events
     if mask_period_file is not None:
         ccn_data = atmoscripts.log_filter(ccn_data,
@@ -269,6 +259,11 @@ DONE?        figure out file naming
     
 #    save_as(ccn_data,ccn_output_path,'exhaustfilt',ccn_output_filetype)
     
+
+    # Separate into different supersaturations
+    ccn_data = ss_split(ccn_data, split_by_supersaturation)
+    save_as(ccn_data,ccn_output_path,'ssSplit',ccn_output_filetype)
+     
     # Resample timebase and calculate uncertainties
     ccn_data = timebase_resampler(ccn_data,time_int=output_time_resolution,
                       split_by_supersaturation = split_by_supersaturation)
@@ -479,6 +474,7 @@ def save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase = None):
     
     
     data.to_hdf(output_h5_filename +'.h5', key='CCN')
+    print("Writing data to file " + output_h5_filename + ".h5")
 #    if fname_current is not None: 
 #    if os.path.isfile(fname_current):    try:
 #            os.remove(fname_current)
@@ -614,8 +610,11 @@ def read_ccn_csv(filelist):
                             )
         # Read date from csv file 
         data['date'] = str(pd.read_csv(filelist[0], names = ['label', 'date'], 
-                            skiprows = range(2,len(data)+6))['date'][1])                                 
+                            skiprows = range(2,len(data)+6))['date'][1]) 
+
+        print("Reading "+str(filelist[0]))                               
         for i in range(i0, i1):
+                print("Reading "+str(filelist[i]))
                 # Load csv data        
                 data_temp = pd.read_csv(filelist[i], 
                             names = colnames, 
@@ -636,7 +635,6 @@ def read_ccn_csv(filelist):
                 fname_current = 'CCNC_noIndex_temp_'+str(i0)+'to'+str(i+2)+\
                                 'of'+str(len(filelist)+1)+'.h5'
                 data.to_hdf(fname_current, key='CCN')
-                
                 # Remove the temporary file    
                 if os.path.isfile(fname_previous):
                     try:
