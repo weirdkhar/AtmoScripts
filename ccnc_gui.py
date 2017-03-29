@@ -542,10 +542,7 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
         
         self.w_status.txt_status = tk.Text(self.w_status, wrap='word')
         self.w_status.sb_status = tk.Scrollbar(self.w_status)
-        self.w_status.txt_status.pack(pady=5, side=tk.LEFT,fill='both', expand=True)
-#        self.w_status.txt_status.place(relx=0.01,rely=0.01,
-#                                       relheight=0.9,relwidth=0.98)
-        
+        self.w_status.txt_status.pack(pady=5, side=tk.LEFT,fill='both', expand=True)    
         self.w_status.sb_status.pack(pady=5,side=tk.LEFT, fill='y')
         
         # Attach listbox to scrollbar
@@ -607,7 +604,8 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
         self.w_finished.geometry("300x200")
         txt = tk.Message(self.w_finished,
                          text = "Processing completed!",
-                         justify=tk.CENTER)
+                         justify=tk.CENTER,
+                         width=300)
         txt.pack()
         bt_ok = tk.Button(self.w_finished,
                           text="OK",
