@@ -1149,7 +1149,9 @@ def timebase_resampler(
                 data_temp = data.resample(time,fill_method=None).apply(rmsn)
                 data_resamp = pd.DataFrame(data_temp['ccn_sigma'])
                 data_resamp.columns = ['ccn_rmsn']
+                del data_temp
                 for column in data.columns:
+                    if column != 'ccn_sigma':    
                         sub_ccn = pd.DataFrame(data[column].copy())
             
                         data_resamp[column+'_med'] = \
