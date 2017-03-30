@@ -106,7 +106,10 @@ class ccn_processing(ttk.Frame):
         
         print("Loading data from file")
         
-        
+#######################
+### When debugging, comment out from here to the next break.
+### When finished, uncomment it so that the status window works.
+#######################        
         ''' UNCOMMENT WHEN FINISHED DEBUGGING
         t = threading.Thread(target = self.loadAndProcess_Multithread,
                              args=(output_filetype,
@@ -124,6 +127,11 @@ class ccn_processing(ttk.Frame):
                                mask_df,
                                flow_cal_df):
         '''
+#######################
+### When debugging, comment out to here.
+### When finished, uncomment it so that the status window works.
+####################### 
+
         # Call processing function
         CCNC.LoadAndProcess(
                 ccn_raw_path = self.raw_path, 
@@ -417,9 +425,7 @@ class ccn_processing(ttk.Frame):
                     text='Select file with mask events (optional)'
                     )
         self.f311.pack(pady=5,padx=10, fill='x')
-        #self.tb_mask_file = tk.StringVar()
         self.tb2 = tk.Entry(self.f311, width=47) 
-        #                    ,textvariable=self.tb_mask_file)
         self.tb2.pack(pady=5,padx=10, fill='x', side=tk.LEFT)
         self.b3 = tk.Button(self.f311,
                          text = "Browse",
@@ -437,9 +443,7 @@ class ccn_processing(ttk.Frame):
                     )
         self.lb3.pack(pady=5,padx=10, side=tk.TOP)
         
-#        self.tb_flowcal_file = tk.StringVar()
         self.tb3 = tk.Entry(self.f321, width=47) 
-#                            ,textvariable=self.tb_flowcal_file)
         self.tb3.pack(pady=5,padx=10, side=tk.LEFT)
         self.b3 = tk.Button(self.f321,
                          text = "Browse",
@@ -535,7 +539,6 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
 ## Processing status window
 ##-----------------------------------------------------------
     def _build_status_window(self):
-        # xkcd - need to get the status window updating
         self.w_status = tk.Toplevel()
         self.w_status.title('CCN Processing Status')
         self.w_status.geometry("800x500")

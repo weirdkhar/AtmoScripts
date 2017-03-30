@@ -18,9 +18,7 @@ Search for "xkcd" to find sections of the code that need attention
         - write netcdf writing function
         - write csv writing function
         - check that you are utilising the functions already written!
-        - fix performance warning in loading csv files
         - ccnc status window
-        - calculate uncertainties (counting stats, flow uncertainties, inlet efficiency uncertainties)
         
 
 """
@@ -229,7 +227,7 @@ def LoadAndProcess(ccn_raw_path = None,
     plot_me(ccn_data, plot_each_step,'CCN Number Conc', 'QC')
     
     # Perform flow calibration if data is provided
-    if flow_cal_file is not None: #xkcd Need to test!
+    if flow_cal_file is not None: 
         ccn_data = flow_cal(ccn_data,flow_cal_file,ccn_raw_path)
         save_as(ccn_data,ccn_output_path,'flowCal',ccn_output_filetype)
         plot_me(ccn_data, plot_each_step,'CCN Number Conc','flow cal')
@@ -263,7 +261,7 @@ def LoadAndProcess(ccn_raw_path = None,
         plot_me(ccn_data, plot_each_step,'CCN Number Conc','log filter')
         
         
-    # Filter for exhaust
+    # Filter for exhaust #xkcd
     
 #    save_as(ccn_data,ccn_output_path,'exhaustfilt',ccn_output_filetype)
     
@@ -487,15 +485,9 @@ def save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase = None):
     
     data.to_hdf(output_h5_filename +'.h5', key='CCN')
     print("Writing data to file " + output_h5_filename + ".h5")
-#    if fname_current is not None: 
-#    if os.path.isfile(fname_current):    try:
-#            os.remove(fname_current)
-#        except:
-#            # do nothing
 #    
     
     # Save the filenames that have been loaded to file for next update    
-#    with open('files_loaded.txt', 'wb') as f:
     try:
         files_already_loaded
     except NameError:
@@ -796,8 +788,9 @@ def load_flow_cals(filename = None, path = None, file_FULLPATH=None):
     return df
 
 def get_week_label(filelist):
-    # Extract the week number of each dates in the filelist
-    
+    '''
+    Extract the week number of each dates in the filelist
+    '''
     dates = [f[13:19] for f in filelist]
     weeknum = [str(datetime.date(
                         2000+int(day[0:2]),
@@ -1173,7 +1166,6 @@ def timebase_resampler(
                                             'count',
                                             col_name = 'med',
                                             output_sigma_name = 'sigma'
-#                                            ,delete_ccn_sigma = False
                                                         )
                 
                 # Reorder columns based on name:
@@ -1264,7 +1256,6 @@ def uncertainty_calc_time_resample(data,
                      dev_stat = 'std',
                      col_name = 'CCN Number Conc', 
                      output_sigma_name = 'ccn_sigma'
-#                     ,delete_ccn_sigma = False
                      ):
     '''
     Propagates measurement uncertainty and adds statistical uncertainty:
@@ -1294,38 +1285,7 @@ def uncertainty_calc_time_resample(data,
                             )
     
     return data
-#    if type(abs_sigma) == str:
-#        assert type(sigma_divisor) == str
-#        
-#        abs_cols = [col for col in data.columns if abs_sigma in col]
-#        divisor_cols = [col for col in data.columns if sigma_divisor in col]
-#        col_root_names = [col.split("_"+abs_sigma)[0] for col in abs_cols]
-#        col_names = [name+"_"+col_name for name in col_root_names]
-#        output_names = [name+"_"+output_sigma_name for name in col_root_names]
-#        
-#        abs_cols.sort()
-#        divisor_cols.sort()
-#        col_root_names.sort()
-#        col_names.sort()
-#        output_names.sort()
-#        
-#        for i in range(0,len(abs_cols)):
-#            data = uncert_worker(data, 
-#                 data[abs_cols[i]], 
-#                 np.sqrt(data[divisor_cols[i]]),
-#                 col_name[i], 
-#                 output_names[i]
-##                 ,delete_ccn_sigma
-#                 )
-#    else:
-#        data = uncert_worker(data, 
-#                 abs_sigma, 
-#                 sigma_divisor,
-#                 col_name, 
-#                 output_sigma_name
-##                 ,delete_ccn_sigma
-#                 )
-#    return data
+
             
 def uncertainty_calc(data, 
                  abs_sigma, 
