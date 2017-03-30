@@ -216,6 +216,11 @@ def LoadAndProcess(ccn_raw_path = None,
     
     plot_me(ccn_data, plot_each_step,'CCN Number Conc','raw')
     
+    # Calculate CCN counting uncertainty
+    ccn_data = uncertainty_calc(ccn_data,
+                                1,
+                                np.sqrt(ccn_data['CCN Number Conc']))
+    
     # QC data for internal parameters and for changes in SS
     if QC:
         ccn_data = DataQC(ccn_data)
@@ -266,11 +271,12 @@ def LoadAndProcess(ccn_raw_path = None,
     # Separate into different supersaturations
     ccn_data = ss_split(ccn_data, split_by_supersaturation)
     save_as(ccn_data,ccn_output_path,'ssSplit',ccn_output_filetype)
-     
+    plot_me(ccn_data, plot_each_step,None,'SS Split')
+    
     # Resample timebase and calculate uncertainties
     ccn_data = timebase_resampler(ccn_data,time_int=output_time_resolution,
                       split_by_supersaturation = split_by_supersaturation)
-    plot_me(ccn_data, plot_each_step,None,'SS Split')
+    
     
     
     return
@@ -977,14 +983,25 @@ def flow_cal(data,
     x = (pd.to_datetime(measured_flows_df.index) - \
          pd.to_datetime('2000-01-01 00:00:00')).total_seconds()
     y = measured_flows_df['flow rate']
-    p = np.poly1d(np.polyfit(x,y,deg=polydeg))
+    fit = np.polyfit(x,y,deg=polydeg, full=True)
+    p = np.poly1d(fit[0])
     x_data = (pd.to_datetime(data.index) - \
               pd.to_datetime('2000-01-01 00:00:00')).total_seconds()
 
     data['CCN Number Conc'] = data['CCN Number Conc']/set_flow_rate*p(x_data)
-    #plt.plot(x,y,'.',xp,p(xp),'--')
+   #plt.plot(x,y,'.',xp,p(xp),'--')
+    
+    # Abs uncertainty is the RMS deviation of the regression
+    sigma_abs = fit[1][0]
+    # Rel uncertainty is abs divided by median of liniear regression
+    sigma_divisor = p(x_data)
+    data = uncertainty_calc(data,sigma_abs,sigma_divisor)
     
     return data
+
+
+
+
 
 def ss_split(data, split_by_supersaturation = True):
     '''
@@ -1002,11 +1019,20 @@ def ss_split(data, split_by_supersaturation = True):
                 d['ccn_' + str(ss)] = data[data['Current SS'] == ss][[\
                                  'CCN Number Conc'\
                                  ]]
+        
         # Concatenate each df in the dictionary
         split_data = pd.concat(d,axis=1)
         
         # Remove multi-indexing
         split_data.columns = split_data.columns.get_level_values(0)
+        
+        # Grab the uncertainty too:
+        uncert_cols = ['ccn_sigma','ccn_sigma_med','ccn_sigma_avg']
+        for col in uncert_cols:
+            if col in data:
+                uncert = data[col]
+                uncert = uncert.dropna()
+                split_data[col] = uncert
         
         return split_data
     else:
@@ -1112,25 +1138,41 @@ def timebase_resampler(
     # define MAD calculation
     mad = lambda x: np.fabs(x - x.median()).median() 
     
+    # define square root of the sum of squares calculation (root mean square numerator)
+    rmsn = lambda x: np.sqrt(np.sum(x**2))
+    
     if split_by_supersaturation:
         # Different data format to default
         
         for time in time_int:
             if time != '1S':
-                data_resamp = data.resample(time,fill_method=None).median()
-                new_col_names = [s + '_med' for s in data_resamp.columns]
-                data_resamp.columns = new_col_names
+                data_temp = data.resample(time,fill_method=None).apply(rmsn)
+                data_resamp = pd.DataFrame(data_temp['ccn_sigma'])
+                data_resamp.columns = ['ccn_rmsn']
                 for column in data.columns:
-                    sub_ccn = pd.DataFrame(data[column].copy())
-        
-                    data_resamp[column+'_mad'] = \
+                        sub_ccn = pd.DataFrame(data[column].copy())
+            
+                        data_resamp[column+'_med'] = \
+                            sub_ccn.resample(time,fill_method=None).median()
+                        data_resamp[column+'_mad'] = \
                             sub_ccn.resample(time,fill_method=None).apply(mad)
-                    data_resamp[column+'_avg'] = \
+                        data_resamp[column+'_avg'] = \
                             sub_ccn.resample(time,fill_method=None).mean()
-                    data_resamp[column+'_std'] = \
+                        data_resamp[column+'_std'] = \
                             sub_ccn.resample(time,fill_method=None).std()
-                    data_resamp[column+'_count'] = \
+                        data_resamp[column+'_count'] = \
                             sub_ccn.resample(time,fill_method=None).count()
+                        
+                
+                # Calculate uncertainty:
+                data_resamp = uncertainty_calc_time_resample(
+                                            data_resamp,
+                                            'mad',
+                                            'count',
+                                            col_name = 'med',
+                                            output_sigma_name = 'sigma'
+#                                            ,delete_ccn_sigma = False
+                                                        )
                 
                 # Reorder columns based on name:
                 data_resamp.sort_index(axis=1)
@@ -1140,60 +1182,172 @@ def timebase_resampler(
                                     variable,input_h5_filename)
                 
     else:
-    
+        
         # define time resampling intervals
-        i_lim = len(time_int)
         sub = data.iloc[:,24:44].copy()
         sub_ccn = data['CCN Number Conc'].copy()
-        for i in range(0, i_lim):
-            t_int = time_int[i]    
-            # Initialise
+        for time in time_int:
+             if time != '1S':
+                data_resamp = sub.resample(time,fill_method=None).median()
+                data_resamp['ccn_count'] = \
+                        sub_ccn.resample(time,fill_method=None).count()
+                data_resamp['ccn_med'] = \
+                        sub_ccn.resample(time,fill_method=None).median()
+                data_resamp['ccn_mad'] = \
+                        sub_ccn.resample(time,fill_method=None).apply(mad)
+                data_resamp['ccn_avg'] = \
+                        sub_ccn.resample(time,fill_method=None).mean()
+                data_resamp['ccn_std'] = \
+                        sub_ccn.resample(time,fill_method=None).std()
+                data_resamp['ccn_rmsn'] = \
+                        sub_ccn.resample(time,fill_method=None).apply(rmsn)
                     
-            data_resamp = sub.resample(t_int,fill_method=None).median()
-            data_resamp['ccn_count'] = sub_ccn.resample(t_int,
-                                                        fill_method=None).count()
-            data_resamp['ccn_med'] = sub_ccn.resample(t_int,
-                                                      fill_method=None).median()
-            data_resamp['ccn_mad'] = sub_ccn.resample(t_int,
-                                                      fill_method=None).apply(mad)
-            data_resamp['ccn_avg'] = sub_ccn.resample(t_int,
-                                                      fill_method=None).mean()
-            data_resamp['ccn_std'] = sub_ccn.resample(t_int,
-                                                      fill_method=None).std()
             
-            # Rename the cloud droplet bins so they make sense when the 
-            # full data is merged
-            data_resamp.rename(columns={'Bin 1': 'CDN Bin 1',
-                                        'Bin 2': 'CDN Bin 2',
-                                        'Bin 3': 'CDN Bin 3',
-                                        'Bin 4': 'CDN Bin 4',
-                                        'Bin 5': 'CDN Bin 5',
-                                        'Bin 6': 'CDN Bin 6',
-                                        'Bin 7': 'CDN Bin 7',
-                                        'Bin 8': 'CDN Bin 8',
-                                        'Bin 9': 'CDN Bin 9',
-                                        'Bin 10': 'CDN Bin 10',
-                                        'Bin 11': 'CDN Bin 11',
-                                        'Bin 12': 'CDN Bin 12',
-                                        'Bin 13': 'CDN Bin 13',
-                                        'Bin 14': 'CDN Bin 14',
-                                        'Bin 15': 'CDN Bin 15',
-                                        'Bin 16': 'CDN Bin 16',
-                                        'Bin 17': 'CDN Bin 17',
-                                        'Bin 18': 'CDN Bin 18',
-                                        'Bin 19': 'CDN Bin 19',
-                                        'Bin 20': 'CDN Bin 20'},
-                               inplace=True)
-            
-            # Save to file
-            save_resampled_data(data,data_resamp,time_int[i],
-                                variable,input_h5_filename)
+                # Calculate uncertainty:
+                data_resamp = uncertainty_calc_time_resample(
+                                            data_resamp,
+                                            'rmsn',
+                                            'ccn_count',
+                                            'mad',
+                                            col_name = 'ccn_med',
+                                            output_sigma_name='sigma_med'
+                                                        )
+                data_resamp = uncertainty_calc_time_resample(
+                                            data_resamp,
+                                            'rmsn',
+                                            'ccn_count',
+                                            'std',
+                                            col_name = 'ccn_avg',
+                                            output_sigma_name='sigma_avg'
+                                                        )
+                # Remove temporary calculation
+                del data_resamp['ccn_rmsn']
+                
+                # Rename the cloud droplet bins so they make sense when the 
+                # full data is merged
+                data_resamp.rename(columns={'Bin 1': 'CDN Bin 1',
+                                            'Bin 2': 'CDN Bin 2',
+                                            'Bin 3': 'CDN Bin 3',
+                                            'Bin 4': 'CDN Bin 4',
+                                            'Bin 5': 'CDN Bin 5',
+                                            'Bin 6': 'CDN Bin 6',
+                                            'Bin 7': 'CDN Bin 7',
+                                            'Bin 8': 'CDN Bin 8',
+                                            'Bin 9': 'CDN Bin 9',
+                                            'Bin 10': 'CDN Bin 10',
+                                            'Bin 11': 'CDN Bin 11',
+                                            'Bin 12': 'CDN Bin 12',
+                                            'Bin 13': 'CDN Bin 13',
+                                            'Bin 14': 'CDN Bin 14',
+                                            'Bin 15': 'CDN Bin 15',
+                                            'Bin 16': 'CDN Bin 16',
+                                            'Bin 17': 'CDN Bin 17',
+                                            'Bin 18': 'CDN Bin 18',
+                                            'Bin 19': 'CDN Bin 19',
+                                            'Bin 20': 'CDN Bin 20'},
+                                   inplace=True)
+                
+                # Save to file
+                save_resampled_data(data,data_resamp,time,
+                                    variable,input_h5_filename)
     try:
+        
         return data_resamp
     except:
         return data
     
-
+def uncertainty_calc_time_resample(data, 
+                     abs_sigma, 
+                     sigma_divisor,
+                     dev_stat = 'std',
+                     col_name = 'CCN Number Conc', 
+                     output_sigma_name = 'ccn_sigma'
+#                     ,delete_ccn_sigma = False
+                     ):
+    '''
+    Propagates measurement uncertainty and adds statistical uncertainty:
+        
+    '''
+    # Find the rmsn column
+    rmsn_cols = [col for col in data.columns if abs_sigma in col]
+    # Find the count column
+    count_cols = [col for col in data.columns if sigma_divisor in col]
+    # Find the desired population deviation stat to use in sigma/sqrt(n)
+    dev_cols = [col for col in data.columns if dev_stat in col]
+    # Find the root names of each supersaturation
+    ss_root_names = [col.split("_"+abs_sigma)[0] for col in rmsn_cols]
+    
+    # Sort columns
+    rmsn_cols.sort()
+    count_cols.sort()
+    dev_cols.sort()
+    ss_root_names.sort()
+    
+    for i in range(0, len(ss_root_names)):
+        data[ss_root_names[i]+"_"+output_sigma_name] = \
+                    np.sqrt(
+                            (data[rmsn_cols[i]]/data[count_cols[i]])**2
+                            +
+                            (data[dev_cols[i]]/np.sqrt(data[count_cols[i]]))**2
+                            )
+    
+    return data
+#    if type(abs_sigma) == str:
+#        assert type(sigma_divisor) == str
+#        
+#        abs_cols = [col for col in data.columns if abs_sigma in col]
+#        divisor_cols = [col for col in data.columns if sigma_divisor in col]
+#        col_root_names = [col.split("_"+abs_sigma)[0] for col in abs_cols]
+#        col_names = [name+"_"+col_name for name in col_root_names]
+#        output_names = [name+"_"+output_sigma_name for name in col_root_names]
+#        
+#        abs_cols.sort()
+#        divisor_cols.sort()
+#        col_root_names.sort()
+#        col_names.sort()
+#        output_names.sort()
+#        
+#        for i in range(0,len(abs_cols)):
+#            data = uncert_worker(data, 
+#                 data[abs_cols[i]], 
+#                 np.sqrt(data[divisor_cols[i]]),
+#                 col_name[i], 
+#                 output_names[i]
+##                 ,delete_ccn_sigma
+#                 )
+#    else:
+#        data = uncert_worker(data, 
+#                 abs_sigma, 
+#                 sigma_divisor,
+#                 col_name, 
+#                 output_sigma_name
+##                 ,delete_ccn_sigma
+#                 )
+#    return data
+            
+def uncertainty_calc(data, 
+                 abs_sigma, 
+                 sigma_divisor,
+                 col_name = 'CCN Number Conc', 
+                 output_sigma_name = 'ccn_sigma'
+                 ):     
+    '''
+    Calculates and propogates uncertainty for each calibration process
+    '''
+    if 'ccn_sigma' in data.columns:
+        data[output_sigma_name] = data[col_name] * \
+                            (
+                            (abs_sigma/sigma_divisor)**2 
+                            + 
+                            (data['ccn_sigma']/data[col_name])**2
+                            )**0.5
+    else: #Initialise
+        data['ccn_sigma'] = data['CCN Number Conc'] * \
+                            ((abs_sigma/sigma_divisor)**2)**0.5
+                            
+    return data
+    
+    
 def save_resampled_data(data, data_resamp,time_int,
                         variable = None, input_h5_filename = None):
     if isinstance(data,pd.DataFrame):        

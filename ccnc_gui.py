@@ -107,7 +107,7 @@ class ccn_processing(ttk.Frame):
         print("Loading data from file")
         
         
-#        ''' UNCOMMENT WHEN FINISHED DEBUGGING
+        ''' UNCOMMENT WHEN FINISHED DEBUGGING
         t = threading.Thread(target = self.loadAndProcess_Multithread,
                              args=(output_filetype,
                                    output_time_res,
@@ -123,7 +123,7 @@ class ccn_processing(ttk.Frame):
                                concat_file_freq,
                                mask_df,
                                flow_cal_df):
-#        '''
+        '''
         # Call processing function
         CCNC.LoadAndProcess(
                 ccn_raw_path = self.raw_path, 
