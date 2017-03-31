@@ -139,17 +139,27 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
     # Read each row of data, taking into account that each row can change length and parsing format (weird...)
     df = pd.read_csv(read_filename, skiprows = range(0,3), engine='python', skipinitialspace=True, iterator = True, chunksize = 1000)
     
+    # Read the number of samples in the file
+    with open(read_filename) as f: 
+        lastline = f.readlines()[-1]
+    numsamples = lastline.split(",")[0]
+    
     for chunk in df:
         # Extract initial timestamp for each sample (i.e. each row)
-        chunk['sample_timestamp'] = pd.to_datetime(chunk['Start Date']+' '+chunk['Start Time'], format = '%m/%d/%y %H:%M:%S')
-
+        try:
+            chunk['sample_timestamp'] = pd.to_datetime(chunk['Start Date']+' '+chunk['Start Time'], format = '%m/%d/%y %H:%M:%S')
+        except KeyError:
+            # The csv file that you've read isn't actually a TSI CPC file
+            return
+        
         data = pd.DataFrame(columns = {'Timestamp', 'Concentration'})
         for rowidx in range(0,len(chunk)):
             # Create timestamp and extract concentration for each sample in chunk
             timestamp = [chunk['sample_timestamp'][rowidx] + pd.Timedelta(seconds=x) for x in range(0, chunk['Sample Length'][rowidx])]
             conc = chunk.iloc[rowidx,12:(12+chunk['Sample Length'][rowidx])]
             
-            print('Formatting sample ' + str(chunk['Sample #'].iloc[rowidx]) + ' of file ' + read_filename)
+            print('Formatting sample ' + str(chunk['Sample #'].iloc[rowidx]) 
+                  + ' of ' + numsamples + ' from file ' + read_filename)
             
             # Format data as dataframe
             data_temp = pd.DataFrame({'Timestamp': timestamp, 'Concentration': conc.values})
