@@ -215,7 +215,6 @@ def LoadAndProcess(ccn_raw_path = None,
     else:
         ccn_data = load_ccn(ccn_raw_path, load_from_filetype)
     
-    
     plot_me(ccn_data, plot_each_step,'CCN Number Conc','raw')
     
     # Calculate CCN counting uncertainty
