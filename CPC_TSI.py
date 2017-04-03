@@ -55,9 +55,13 @@ def Load_to_HDF(RawDataPath,
 def save_to_hdf(data, output_h5_filename, output_file_frequency):    
     import datetime
     ''' Determine the destination file for each datapoint in the dataframe'''
-    year_str = [datetime.datetime.strftime(i, format = '%Y') for i in data.index]
-    mnth_str = [datetime.datetime.strftime(i, format = '%m') for i in data.index]
-
+    #year_str = [datetime.datetime.strftime(i, format = '%Y') for i in data.index]
+    year_str = [str(i.isocalendar()[0]) for i in data.index]
+    #mnth_str = [datetime.datetime.strftime(i, format = '%m') for i in data.index]
+    mnth_str = ['0' + str(i.month) \
+                if i.month <10 \
+                else str(i.month) \
+                for i in data.index]
     
     
     if output_file_frequency.lower() == 'monthly':

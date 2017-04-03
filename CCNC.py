@@ -799,7 +799,7 @@ def get_week_label(filelist):
                 if datetime.date(
                         2000+int(day[0:2]),
                         int(day[2:4]),
-                        int(day[4:6])).isocalendar()[1] > 10 \
+                        int(day[4:6])).isocalendar()[1] >= 10 \
                 else ('0'+str(datetime.date(
                         2000+int(day[0:2]),
                         int(day[2:4]),
