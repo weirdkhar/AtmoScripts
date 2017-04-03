@@ -165,6 +165,7 @@ def main():
 def LoadAndProcess(ccn_raw_path = None, 
                    ccn_output_path = None,
                    ccn_output_filetype = 'hdf',
+                   load_from_filetype = 'csv',
                    filename_base = 'CCN', 
                    force_reload_from_source = False,
                    QC = False, 
@@ -197,8 +198,9 @@ def LoadAndProcess(ccn_raw_path = None,
     if ccn_output_path is None:
         ccn_output_path = ccn_raw_path
     
-    # Concatenate csv files
-    concatenate_from_csv(
+    if load_from_filetype == "csv":
+        # Concatenate csv files
+        concatenate_from_csv(
                          ccn_raw_path,
                          ccn_output_path,
                          filename_base,
@@ -208,9 +210,11 @@ def LoadAndProcess(ccn_raw_path = None,
                          force_reload_from_source,
                          input_filelist=input_filelist
                          )
+        # Load data
+        ccn_data = load_ccn(ccn_output_path,ccn_output_filetype)
+    else:
+        ccn_data = load_ccn(ccn_raw_path, load_from_filetype)
     
-    # Load data
-    ccn_data = load_ccn(ccn_output_path,ccn_output_filetype)
     
     plot_me(ccn_data, plot_each_step,'CCN Number Conc','raw')
     
