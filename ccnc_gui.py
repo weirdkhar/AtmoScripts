@@ -196,7 +196,7 @@ class ccn_processing(ttk.Frame):
     def output_path_dialog(self):
         '''Selecting output path, if not chosen, use the input directory'''
         self.output_path = filedialog.askdirectory()
-        self.t_outputPath.delete(1.0,tk.END)
+        self.t_outputPath.delete(0,tk.END)
         self.t_outputPath.insert(tk.END,self.output_path)
                 
     
