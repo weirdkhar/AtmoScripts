@@ -110,7 +110,7 @@ class ccn_processing(ttk.Frame):
 ### When debugging, comment out from here to the next break.
 ### When finished, uncomment it so that the status window works.
 #######################        
-        ''' UNCOMMENT WHEN FINISHED DEBUGGING
+#        ''' UNCOMMENT WHEN FINISHED DEBUGGING
         t = threading.Thread(target = self.loadAndProcess_Multithread,
                              args=(output_filetype,
                                    output_time_res,
@@ -126,7 +126,7 @@ class ccn_processing(ttk.Frame):
                                concat_file_freq,
                                mask_df,
                                flow_cal_df):
-        '''
+#        '''
 #######################
 ### When debugging, comment out to here.
 ### When finished, uncomment it so that the status window works.
@@ -145,6 +145,8 @@ class ccn_processing(ttk.Frame):
                 concat_file_frequency = concat_file_freq,
                 mask_period_timestamp_df = mask_df,
                 flow_cal_df = flow_cal_df,
+                flow_setpt = float(self.tb_flow_rate_set.get())*1000,
+                flow_polyDeg = float(self.tb_flow_rate_fit.get()),
                 calibrate_for_pressure = self.cb_pressCal,
                 press_cal = float(self.tb_calPress.get()),
                 press_meas = float(self.tb_measPress.get()),
@@ -419,7 +421,7 @@ class ccn_processing(ttk.Frame):
                                text="QC for internal parameters", 
                                variable=self.qc)
         self.cb_qc.select()
-        self.cb_qc.pack(pady=5,padx=10)
+        self.cb_qc.pack()
         
         self.f311 = tk.LabelFrame(self.f31,
                     text='Select file with mask events (optional)'
@@ -433,15 +435,13 @@ class ccn_processing(ttk.Frame):
                          ).pack(pady=5,padx=10, side=tk.LEFT)
         
         
-        self.f32 = ttk.LabelFrame(self.f3, text='Data calibration')
+        
+        self.f32 = ttk.LabelFrame(self.f3, text='Flow calibration')
         self.f32.pack(pady=5,padx=10, fill='x')
         
-        self.f321 = ttk.LabelFrame(self.f32, text='Flow calibration')
+        self.f321 = tk.LabelFrame(self.f32, 
+                    text='Select file with flow calibration data (optional)')
         self.f321.pack(pady=5,padx=10, fill='x')
-        self.lb3 = tk.Label(self.f321,
-                    text='Select file with flow calibration data (optional)'
-                    )
-        self.lb3.pack(pady=5,padx=10, side=tk.TOP)
         
         self.tb3 = tk.Entry(self.f321, width=47) 
         self.tb3.pack(pady=5,padx=10, side=tk.LEFT)
@@ -451,14 +451,35 @@ class ccn_processing(ttk.Frame):
                          )
         self.b3.pack(pady=5,padx=10, side=tk.LEFT)
         
+        self.lb_flow_rate_set = tk.Label(self.f32,text="Set flow rate (LPM)")
+        self.tb_flow_rate_set = tk.Entry(self.f32, width = 10)
+        self.tb_flow_rate_set.insert(tk.END,0.5)
+        self.lb_flow_rate_set.pack(pady=5,padx=10, side=tk.LEFT)
+        self.tb_flow_rate_set.pack(pady=5,padx=10, side=tk.LEFT)
+        self.lb_flow_rate_set.place(relx=0.02, rely=0.55)
+        self.tb_flow_rate_set.place(relx=0.52, rely=0.55)
         
-        self.f322 = ttk.LabelFrame(self.f32, text='Pressure calibration')
+        
+        self.lb_flow_rate_fit = tk.Label(self.f32,
+                                    text="Polynomial degree for flow rate fit")
+        self.tb_flow_rate_fit = tk.Entry(self.f32, width = 10)
+        self.tb_flow_rate_fit.insert(tk.END,2)
+        self.lb_flow_rate_fit.pack(pady=5,padx=10, side=tk.LEFT)
+        self.tb_flow_rate_fit.pack(pady=5,padx=10, side=tk.LEFT)
+        self.lb_flow_rate_fit.place(relx=0.02, rely=0.8)
+        self.tb_flow_rate_fit.place(relx=0.52, rely=0.8)
+        
+        
+        
+        
+        self.f322 = ttk.LabelFrame(self.f3, 
+                text='Supersaturation calibration for atmospheric pressure')
         self.f322.pack(pady=5,padx=10, fill='x')
         
         self.lb322 = tk.Label(self.f322, 
-                      text = """Corrects reported supersaturation for changes \
-in atmospheric pressure between calibration site and measurement site. If \
-calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
+                      text = """Corrects reported SS for changes \
+in atm. pressure between cal. site & measurement site. If \
+calibrated by DMT, cal. pressure is 830 hPa. Sea level pressure is 1010\
  hPa."""
                       ,wraplength=350,
                       )
@@ -507,10 +528,13 @@ calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
                        foreground='white',
                        font = 'Times 18 bold',
                        width = 15)
-        self.bt_go.pack(side=tk.BOTTOM)
+        self.bt_go.pack()
         self.bt_go.place(rely=0.89, relx=0.25)
 
-    
+        self.f31.place(relx=0.01,rely=0.01,relheight=0.21,relwidth=0.98)
+        self.f32.place(relx=0.01,rely=0.22,relheight=0.26,relwidth=0.98)
+        self.f322.place(relx=0.01,rely=0.5,relheight=0.33,relwidth=0.98)
+        self.cb_plot.place(relx=0.3,rely=0.83)
 
 ##-----------------------------------------------------------
 ## Variable check window

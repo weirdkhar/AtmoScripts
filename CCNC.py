@@ -231,14 +231,21 @@ def LoadAndProcess(ccn_raw_path = None,
     
     # Perform flow calibration if data is provided
     if flow_cal_file is not None: 
-        ccn_data = flow_cal(ccn_data,flow_cal_file,ccn_raw_path)
+        ccn_data = flow_cal(ccn_data,
+                            flow_cal_file,
+                            ccn_raw_path,
+                            set_flow_rate = flow_setpt,
+                            polydeg=flow_polyDeg)
         save_as(ccn_data,ccn_output_path,'flowCal',ccn_output_filetype)
         plot_me(ccn_data, plot_each_step,'CCN Number Conc','flow cal')
     elif flow_cal_df is not None:
-        ccn_data = flow_cal(ccn_data,measured_flows_df=flow_cal_df)
+        ccn_data = flow_cal(ccn_data,
+                            measured_flows_df=flow_cal_df,
+                            set_flow_rate = flow_setpt,
+                            polydeg=flow_polyDeg
+                            )
         save_as(ccn_data,ccn_output_path,'flowCal',ccn_output_filetype)
         plot_me(ccn_data, plot_each_step,'CCN Number Conc','flow cal')
-    
     
     # Calibrate supersaturation
     ccn_data = ss_cal(ccn_data, press_meas, press_cal)
