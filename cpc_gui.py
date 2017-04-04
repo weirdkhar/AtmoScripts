@@ -88,12 +88,12 @@ class cpc_processing(ttk.Frame):
             self.destroy()
         
         try:
-            flow_cal_df = CCNC.load_flow_cals(file_FULLPATH=self.flowcal_file)
+            flow_cal_df = CPC_TSI.load_flow_cals(file_FULLPATH=self.flowcal_file)
         except:
             flow_cal_df = None
             
         try:
-            mask_df = CCNC.load_manual_mask(file_FULLPATH=self.mask_file)
+            mask_df = CPC_TSI.load_manual_mask(file_FULLPATH=self.mask_file)
         except:
             mask_df = None
         
@@ -110,7 +110,7 @@ class cpc_processing(ttk.Frame):
 ### When debugging, comment out from here to the next break.
 ### When finished, uncomment it so that the status window works.
 #######################        
-#        ''' UNCOMMENT WHEN FINISHED DEBUGGING
+        ''' UNCOMMENT WHEN FINISHED DEBUGGING
         t = threading.Thread(target = self.loadAndProcess_Multithread,
                              args=(output_filetype,
                                    output_time_res,
@@ -126,32 +126,31 @@ class cpc_processing(ttk.Frame):
                                concat_file_freq,
                                mask_df,
                                flow_cal_df):
-#        '''
+        '''
 #######################
 ### When debugging, comment out to here.
 ### When finished, uncomment it so that the status window works.
 ####################### 
 
         # Call processing function
-        CCNC.LoadAndProcess(
-                ccn_raw_path = self.raw_path, 
-                ccn_output_path = self.output_path,
-                ccn_output_filetype = output_filetype,
-                filename_base = 'CCN', 
-                force_reload_from_source = self.forceReload.get(),
-                split_by_supersaturation = self.split_SS.get(),
-                QC = self.qc.get(), 
-                output_time_resolution=output_time_res,
-                concat_file_frequency = concat_file_freq,
-                mask_period_timestamp_df = mask_df,
-                flow_cal_df = flow_cal_df,
-                calibrate_for_pressure = self.cb_pressCal,
-                press_cal = float(self.tb_calPress.get()),
-                press_meas = float(self.tb_measPress.get()),
-                plot_each_step = self.plotresults.get(),
-                input_filelist = list(self.files_raw)
-                )
-        
+        CPC_TSI.LoadAndProcess(        
+                   cn_raw_path = self.raw_path, 
+                   cn_output_path = self.output_path,
+                   cn_output_filetype = output_filetype,
+                   filename_base = 'CN3',
+                   force_reload_from_source = self.forceReload.get(),
+                   output_time_resolution = output_time_res,
+                   concat_file_frequency = concat_file_freq,
+                   input_filelist = list(self.files_raw),
+                   NeedsTZCorrection = self.correct4TZ.get(),
+                   CurrentTZ = float(self.tb_TZcurrent.get()), 
+                   OutputTZ =  float(self.tb_TZdesired.get()),
+                   mask_period_timestamp_df = mask_df,
+                   flow_cal_df = flow_cal_df,
+                   CN_flow_setpt = float(self.tb_flow_rate_set.get())*1000,
+                   CN_flow_polyDeg = float(self.tb_flow_rate_fit.get()),
+                   plot_each_step = self.plotresults.get()
+                   )
         self.finished_window()
 
         
@@ -194,7 +193,7 @@ class cpc_processing(ttk.Frame):
     def output_path_dialog(self):
         '''Selecting output path, if not chosen, use the input directory'''
         self.output_path = filedialog.askdirectory()
-        self.t_outputPath.delete(1.0,tk.END)
+        self.t_outputPath.delete(0,tk.END)
         self.t_outputPath.insert(tk.END,self.output_path)
                 
     
@@ -202,13 +201,13 @@ class cpc_processing(ttk.Frame):
         '''
         Disables input into the pressure fields if the checkbox isn't ticked.
         '''
-        
-        if self.correct4pressure.get() == 0:
-            self.tb_calPress.configure(state='disabled')
-            self.tb_measPress.configure(state='disabled')
-        elif self.correct4pressure.get() == 1:
-            self.tb_calPress.configure(state='normal')
-            self.tb_measPress.configure(state='normal')
+        self.correct4TZ
+        if self.correct4TZ.get() == 0:
+            self.tb_TZcurrent.configure(state='disabled')
+            self.tb_TZdesired.configure(state='disabled')
+        elif self.correct4TZ.get() == 1:
+            self.tb_TZcurrent.configure(state='normal')
+            self.tb_TZdesired.configure(state='normal')
         
 ##-----------------------------------------------------------
 ## GUI Widgets
@@ -416,12 +415,12 @@ class cpc_processing(ttk.Frame):
         # Data mask/removal frame
         self.f31 = ttk.LabelFrame(self.f3, text='Data masking/removal')
         self.f31.pack(pady=5,padx=10, fill='x')
-        self.qc = tk.IntVar()
-        self.cb_qc = tk.Checkbutton(self.f31, 
-                               text="QC for internal parameters", 
-                               variable=self.qc)
-        self.cb_qc.select()
-        self.cb_qc.pack(pady=5,padx=10)
+#        self.qc = tk.IntVar()
+#        self.cb_qc = tk.Checkbutton(self.f31, 
+#                               text="QC for internal parameters", 
+#                               variable=self.qc)
+#        self.cb_qc.select()
+#        self.cb_qc.pack(pady=5,padx=10)
         
         self.f311 = tk.LabelFrame(self.f31,
                     text='Select file with mask events (optional)'
@@ -435,15 +434,13 @@ class cpc_processing(ttk.Frame):
                          ).pack(pady=5,padx=10, side=tk.LEFT)
         
         
-        self.f32 = ttk.LabelFrame(self.f3, text='Data calibration')
+        self.f32 = ttk.LabelFrame(self.f3, text='Flow calibration')
         self.f32.pack(pady=5,padx=10, fill='x')
         
-        self.f321 = ttk.LabelFrame(self.f32, text='Flow calibration')
+        
+        self.f321 = tk.LabelFrame(self.f32, 
+                    text='Select file with flow calibration data (optional)')
         self.f321.pack(pady=5,padx=10, fill='x')
-        self.lb3 = tk.Label(self.f321,
-                    text='Select file with flow calibration data (optional)'
-                    )
-        self.lb3.pack(pady=5,padx=10, side=tk.TOP)
         
         self.tb3 = tk.Entry(self.f321, width=47) 
         self.tb3.pack(pady=5,padx=10, side=tk.LEFT)
@@ -453,46 +450,65 @@ class cpc_processing(ttk.Frame):
                          )
         self.b3.pack(pady=5,padx=10, side=tk.LEFT)
         
+        self.lb_flow_rate_set = tk.Label(self.f32,text="Set flow rate (LPM)")
+        self.tb_flow_rate_set = tk.Entry(self.f32, width = 10)
+        self.tb_flow_rate_set.insert(tk.END,1.0)
+        self.lb_flow_rate_set.pack(pady=5,padx=10, side=tk.LEFT)
+        self.tb_flow_rate_set.pack(pady=5,padx=10, side=tk.LEFT)
+        self.lb_flow_rate_set.place(relx=0.02, rely=0.55)
+        self.tb_flow_rate_set.place(relx=0.52, rely=0.55)
+        
+        
+        self.lb_flow_rate_fit = tk.Label(self.f32,
+                                    text="Polynomial degree for flow rate fit")
+        self.tb_flow_rate_fit = tk.Entry(self.f32, width = 10)
+        self.tb_flow_rate_fit.insert(tk.END,2)
+        self.lb_flow_rate_fit.pack(pady=5,padx=10, side=tk.LEFT)
+        self.tb_flow_rate_fit.pack(pady=5,padx=10, side=tk.LEFT)
+        self.lb_flow_rate_fit.place(relx=0.02, rely=0.8)
+        self.tb_flow_rate_fit.place(relx=0.52, rely=0.8)
+        
+        
         
 #==============================================================================
-#         self.f322 = ttk.LabelFrame(self.f32, text='Pressure calibration')
-#         self.f322.pack(pady=5,padx=10, fill='x')
-#         
-#         self.lb322 = tk.Label(self.f322, 
-#                       text = """Corrects reported supersaturation for changes \
-# in atmospheric pressure between calibration site and measurement site. If \
-# calibrated by DMT, calibration pressure is 830 hPa. Sea level pressure is 1010\
-#  hPa."""
-#                       ,wraplength=350,
-#                       )
-#         self.lb322.pack(pady=5,padx=10)
-#         
-#         self.correct4pressure = tk.IntVar()
-#         self.cb_pressCal = tk.Checkbutton(self.f322,
-#                                           text = 'Correct for pressure',
-#                                           variable = self.correct4pressure,
-#                                           onvalue = 1, offvalue = 0,
-#                                           command = self.grey_press_input)
-#         self.cb_pressCal.select()
-#         self.cb_pressCal.pack(pady=5, padx=10)
-#         
-#         self.f3221 = tk.LabelFrame(self.f322,text='Cal. Pressure')
-#         self.tb_calPress = tk.Entry(self.f3221, width = 5)
-#         self.tb_calPress.insert(tk.END,830)
-#         self.lb_units1 = tk.Label(self.f3221,text='hPa')
-#         
-#         self.f3221.pack(pady=5,padx=40, side=tk.LEFT, fill='x')
-#         self.tb_calPress.pack(pady=5,padx=10, side=tk.LEFT)
-#         self.lb_units1.pack(pady=5,padx=10, side=tk.LEFT)
-#         
-#         self.f3222 = tk.LabelFrame(self.f322,text='Meas. Pressure')
-#         self.tb_measPress = tk.Entry(self.f3222, width = 5)
-#         self.tb_measPress.insert(tk.END,1010)
-#         self.lb_units2 = tk.Label(self.f3222,text='hPa')
-#         
-#         self.f3222.pack(pady=5,padx=40, side=tk.RIGHT)
-#         self.tb_measPress.pack(pady=5,padx=10, side=tk.LEFT)
-#         self.lb_units2.pack(pady=5,padx=10, side=tk.RIGHT)
+        self.f322 = ttk.LabelFrame(self.f3, text='Time Zone Correction')
+        self.f322.pack(pady=5,padx=10, fill='x')
+         
+        self.lb322 = tk.Label(self.f322, 
+                       text = "Corrects timestamp for offset created by AIM \
+outputting the timestamps based on the export computer's settings, rather \
+than the measurement computer's time zone settings."
+                       ,wraplength=350,
+                       )
+        self.lb322.pack(pady=5,padx=10)
+         
+        self.correct4TZ = tk.IntVar()
+        self.cb_TZcorrection = tk.Checkbutton(self.f322,
+                                           text = 'Correct Time Zone',
+                                           variable = self.correct4TZ,
+                                           onvalue = 1, offvalue = 0,
+                                           command = self.grey_press_input)
+        self.cb_TZcorrection.pack(pady=5, padx=10)
+         
+        self.f3221 = tk.LabelFrame(self.f322,
+                                    text="Export PC's TZ (current)")
+        self.tb_TZcurrent = tk.Entry(self.f3221, width = 5)
+        self.tb_TZcurrent.insert(tk.END,0)
+        self.lb_units1 = tk.Label(self.f3221,text='hrs from UTC')
+         
+        self.f3221.pack(pady=5,padx=10, side=tk.LEFT, fill='x')
+        self.tb_TZcurrent.pack(pady=5,padx=10, side=tk.LEFT)
+        self.lb_units1.pack(pady=5,padx=10, side=tk.LEFT)
+         
+        self.f3222 = tk.LabelFrame(self.f322
+                                    ,text="Meas. PC's TZ (desired)")
+        self.tb_TZdesired = tk.Entry(self.f3222, width = 5)
+        self.tb_TZdesired.insert(tk.END,0)
+        self.lb_units2 = tk.Label(self.f3222,text='hrs from UTC')
+         
+        self.f3222.pack(pady=5,padx=10, side=tk.RIGHT)
+        self.tb_TZdesired.pack(pady=5,padx=10, side=tk.LEFT)
+        self.lb_units2.pack(pady=5,padx=10, side=tk.RIGHT)
 #==============================================================================
         
         
@@ -514,8 +530,10 @@ class cpc_processing(ttk.Frame):
         self.bt_go.pack(side=tk.BOTTOM)
         self.bt_go.place(rely=0.89, relx=0.25)
 
-    
-
+        self.f31.place(relx=0.01,rely=0.04,relheight=0.15,relwidth=0.98)
+        self.f32.place(relx=0.01,rely=0.2,relheight=0.26,relwidth=0.98)
+        self.f322.place(relx=0.01,rely=0.47,relheight=0.33,relwidth=0.98)
+        self.cb_plot.place(relx=0.3,rely=0.83)
 ##-----------------------------------------------------------
 ## Variable check window
 ##-----------------------------------------------------------

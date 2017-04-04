@@ -8,34 +8,54 @@ import pandas as pd
 import os
 import glob
 import pickle
+import numpy as np
+import re
+import atmoscripts
+import matplotlib.pyplot as plt
 
 
-def Load_to_HDF(RawDataPath,
+def Load_to_HDF(input_path= None,
+                input_filelist = None,
+                output_path = None,
                 output_h5_filename = 'CPC_sec', 
                 InputTZ = 0, 
                 OutputTZ = 0, 
                 resample_time = False, 
-                output_file_frequency = 'all'
+                output_file_frequency = 'all',
+                force_reload_from_source = False
                 ):
     """
     Load performed after data has been exported to CSV file with just raw concentrations and times.
     """
-
-    os.chdir(RawDataPath)
+    if output_path is None:
+        os.chdir(input_path)
+    else:
+        os.chdir(output_path)
     
-    filelist = glob.glob('*.csv')
-    # Check if previous data has already been loaded, if so, don't load it again
-    if os.path.isfile('files_loaded.txt'):
-        with open('files_loaded.txt', 'rb') as f:
-            files_already_loaded = pickle.load(f)
-        # Get only the new files to be loaded:
-        filelist = list(set(filelist).difference(set(files_already_loaded)))
+    if (output_h5_filename is None) or (output_h5_filename == ''):
+        output_h5_filename = 'CPC'
+        
+    if force_reload_from_source:
+        remove_previous_output('h5',force_reload_from_source)
+    
+    if input_filelist is None:
+        os.chdir(input_path)
+        filelist = glob.glob('*.csv')
+        # Check if previous data has been loaded, if so, don't load it again
+        if os.path.isfile('files_loaded.txt'):
+            with open('files_loaded.txt', 'rb') as f:
+                files_already_loaded = pickle.load(f)
+            # Get only the new files to be loaded:
+            filelist=list(set(filelist).difference(set(files_already_loaded)))
+    else:
+        filelist = input_filelist
     filelist.sort()       
-    
+
     #Iterate through to load the raw files 
     for file in filelist:
         # Read cpc csv file
-        read_cpc_csv(file, output_h5_filename, output_file_frequency, InputTZ, OutputTZ)  
+        read_cpc_csv(file, output_h5_filename, output_file_frequency, 
+                     InputTZ, OutputTZ)  
     
     #Save the files that have already been loaded to file for next update
     with open('files_loaded.txt', 'wb') as f:
@@ -48,9 +68,44 @@ def Load_to_HDF(RawDataPath,
         pickle.dump(filelist, f)
 
     if resample_time:    
-        resample_timebase(RawDataPath, output_h5_filename,variable = output_h5_filename,time_int=['5S'])
+        resample_timebase(input_path, output_h5_filename,variable = output_h5_filename,time_int=['5S'])
     
-    return None
+    return 
+
+def load_cn(data_path, filetype):
+    ''' 
+    Loads data from concatenated data file.
+    '''
+    os.chdir(data_path)
+    # Get most recently updated file:
+    filelist = glob.glob('*.'+filetype)
+    fname = min(filelist, key=os.path.getctime)
+    if filetype in ['hdf','h5']:
+        data = pd.read_hdf(fname, key='cn')
+    
+    elif filetype in ['netcdf','nc']:
+        # xkcd
+        data = None
+    
+    elif filetype == 'csv':
+        data = pd.read_csv(fname,skipinitialspace = True)  
+    
+    return data
+
+
+def remove_previous_output(filetype, reload_from_source):
+    '''
+    Checks if previous files have been created. If not, then return true and 
+    create the new files. If so, and you've been asked to reload_from_source,
+    return true. Otherwise, return false and don't reload the files. 
+    '''
+    filelist = glob.glob('*'+filetype)
+    if len(filelist) > 0 and reload_from_source:
+        # Delete files and return
+        for file in filelist:
+            os.remove(file)
+        os.remove('files_loaded.txt')
+    return
 
 def save_to_hdf(data, output_h5_filename, output_file_frequency):    
     import datetime
@@ -89,7 +144,7 @@ def save_to_hdf(data, output_h5_filename, output_file_frequency):
         # Continue as normal
 #        print('Saving all data to a single HDF file')
         data['destination_file'] = output_h5_filename
-    
+        output_filelist = set(data['destination_file'])
     else:
 #        if output_file_frequency.lower() == 'daily':
 #            print('Saving to daily HDF files')
@@ -114,7 +169,7 @@ def save_to_hdf(data, output_h5_filename, output_file_frequency):
         
         # Check if file already exists, if so, append, otherwise, create a new file
         if os.path.isfile(file+'.h5'):
-            data_saved = pd.read_hdf(file+'.h5', key = output_h5_filename)
+            data_saved = pd.read_hdf(file+'.h5', key = 'cn')
             data_temp = data_saved.append(data_temp)
             # Drop any duplicates which may be there, based only on the Timestamp
             data_temp = data_temp.reset_index().drop_duplicates(subset='Timestamp', keep='last')
@@ -122,7 +177,7 @@ def save_to_hdf(data, output_h5_filename, output_file_frequency):
             
             #os.remove(file+'.h5')
         # Save to file
-        data_temp.to_hdf(file+'.h5', key = output_h5_filename, mode='a')
+        data_temp.to_hdf(file+'.h5', key = 'cn', mode='a')
         
     
     # Remove additional columns that were added to the dataframe in the processing
@@ -131,7 +186,10 @@ def save_to_hdf(data, output_h5_filename, output_file_frequency):
     return file+'.h5'
     
 def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, InputTZ=0, OutputTZ=0):
-    # Reads CPC data exports from AIM 10 and higher as row based, with ONLY concentration data output
+    '''
+    Reads CPC data exports from AIM 10 and higher as row based, with 
+    ONLY concentration data output
+    '''
     import numpy as np
     
     if output_file_frequency == 'all':
@@ -341,126 +399,234 @@ def TimeZoneCorrection(DataFrame, CurrentTZ, ConvertToUTC = True, OutputTZ = 0):
     return DataFrame
 
 
-def resample_timebase(data=0,RawDataPath='',input_h5_filename='',variable='CN',time_int='default'):
-    ### Time resampling
-
-    import pandas as pd
-    import numpy as np
-    import os
-    
-    if not isinstance(data, pd.DataFrame): #if no data provided, try to load from file
-        if (not RawDataPath == '') & (not input_h5_filename == ''):
-            os.chdir(RawDataPath)
-            if os.path.isfile(input_h5_filename): 
-                data = pd.read_hdf(input_h5_filename+'.h5', key=variable)
-        else:
-            print("Please input either a dataframe or a datapath and filename where data can be found")
-            return
-    
-    
-    # define time resampling intervals unless specified in function input
-    if time_int == 'default':
-        time_int = ['5S','1Min', '5Min', '10Min', '30Min', '1H', '3H', '6H', '12H', '1D']    
-    
-    
-    # define MAD calculation
-    mad = lambda x: np.fabs(x - x.median()).median() 
-    
-    # define time resampling intervals
-    i_lim = len(time_int)
-    for i in range(0, i_lim):
-        t_int = time_int[i]    
-        # Initialise    
-        data_resamp = data['Concentration'].resample(t_int,fill_method=None, how=['count'])
-        data_resamp.rename(columns={'count' : variable+'_count'},inplace=True)
-        # Resample with stats    
-        data_resamp[variable+'_median'] = data.resample(t_int,fill_method=None).median()
-        data_resamp[variable+'_mad'] = data.resample(t_int,fill_method=None).apply(mad)
-        data_resamp[variable+'_mean'] = data.resample(t_int,fill_method=None).mean()
-        data_resamp[variable+'_std'] = data.resample(t_int,fill_method=None).std()
-        
-        #del data_resamp['Concentration']
-        
-        # Save to file
-        if isinstance(data,pd.DataFrame):        
-            outputfilename = variable+'_'+time_int[i]+'.h5'
-        else:
-            outputfilename = input_h5_filename+'_'+ time_int[i] +'.h5'
-        data_resamp.to_hdf(outputfilename, key=variable)
-    
-    return data_resamp
-
-def flow_cal(data, measured_flows_df, set_flow_rate, polydeg=2):
-    ''' Calibrates CPC_data for measured flow rates.
-    data - dataframe of raw CPC data
-    measured_flows_df - a dataframe of the times and measured flow rates used for calibration. See CAPRICORN.py for an example
-    set_flow_rate - the flow rate that the instrument SHOULD be at.
-    polydeg - the degree of the polynomial to fit to the measured data and correct with.
+def flow_cal(data, 
+             flow_cal_filename = None,
+             flow_cal_path = None,
+             measured_flows_df = None, 
+             set_flow_rate = 1000, #ccm
+             polydeg=2):
+    ''' Calibrates CPC_data for measured flow rates. Data input can either be 
+    an already loaded dataframe, or directions to the csv file which contains
+    the correctly formatted data.
+    Parameters:
+     - data - dataframe of raw CPC data
+     - flow_cal_filename - str - filename of the flow cal csv data.
+     - flow_cal_path - str - path of the flow cal csv data
+     - measured_flows_df - a dataframe of the times and measured flow rates 
+         used for calibration. See CAPRICORN.py for an example
+     - set_flow_rate - the flow rate that the instrument SHOULD be at.
+     - polydeg - the degree of the polynomial to fit to the measured data and 
+         correct with.
     '''
-    import numpy as np
-    import pandas as pd
+    
+    # Load data from file if required:
+    if measured_flows_df is None:
+        # Assume we're already in the required directory if the path isn't 
+        # provided
+        measured_flows_df = load_flow_cals(flow_cal_filename, flow_cal_path)
+    
+    
     # Convert dates to seconds since 1 Jan 2000
-    x = (measured_flows_df.index - pd.to_datetime('2000-01-01 00:00:00')).total_seconds()
+    x = (pd.to_datetime(measured_flows_df.index) - \
+         pd.to_datetime('2000-01-01 00:00:00')).total_seconds()
     y = measured_flows_df['flow rate']
-    p = np.poly1d(np.polyfit(x,y,deg=polydeg))
-    x_data = (data.index - pd.to_datetime('2000-01-01 00:00:00')).total_seconds()
+    fit = np.polyfit(x,y,deg=polydeg, full=True)
+    p = np.poly1d(fit[0])
+    x_data = (pd.to_datetime(data.index) - \
+              pd.to_datetime('2000-01-01 00:00:00')).total_seconds()
 
     data['Concentration'] = data['Concentration']/set_flow_rate*p(x_data)
-    #plt.plot(x,y,'.',xp,p(xp),'--')
+   #plt.plot(x,y,'.',xp,p(xp),'--')
+    
+    # Abs uncertainty is the RMS deviation of the regression
+    try:
+        sigma_abs = fit[1][0]
+    except IndexError: 
+        # we get a perfect fit because we have < n calibration points
+        sigma_abs = 0
+        
+    # Rel uncertainty is abs divided by median of liniear regression
+    sigma_divisor = p(x_data)
+    data = uncertainty_calc(data,sigma_abs,sigma_divisor)
     
     return data
     
-def LoadAndProcess(CN_path, 
+#==============================================================================
+# def LoadAndProcess(CN_path, 
+#                    filename_base = 'CN3', 
+#                    filtOrRaw='filt', 
+#                    timeResolution='',
+#                    mask_period_timestamp_list = [''],
+#                    CurrentTZ = 0, 
+#                    OutputTZ = 0,
+#                    CN_flow_check_df = '',
+#                    CN_flow_setpt = 1500,
+#                    CN_flow_polyDeg = 2
+#                    ):
+#     
+#     os.chdir(CN_path)
+#     NeedsTZCorrection=True #Initialise
+#     
+#     # Check if any h5 file has been produced yet (ie. the initial processing 
+#     # has occurred)
+#     if not glob.glob('*.h5'):
+#         Load_to_HDF(CN_path,filename_base, InputTZ = CurrentTZ, OutputTZ = OutputTZ)
+#     
+#     filename = filename_base+'_'+timeResolution+'.h5'
+#     filename_1sec = filename_base+'_'+filtOrRaw+'.h5'
+# 
+#     if filtOrRaw.lower() == 'filt':
+#         if os.path.isfile(filename):
+#             CN = pd.read_hdf(filename,key='cn')
+#             NeedsTimeResampling = False
+#             return CN
+#         elif os.path.isfile(filename):
+#             CN = pd.read_hdf(filename_1sec,key='cn')
+#             NeedsTimeResampling = True   
+#             return CN
+#         else:
+#             filtOrRaw = 'raw' # filt file not available, produce it!
+#             filename_1sec = filename_base+'_'+filtOrRaw+'.h5'
+#             
+#     if filtOrRaw.lower() == 'raw':
+#         if os.path.isfile(filename_1sec):
+#             CN = pd.read_hdf(filename_1sec,key='cn')
+#             NeedsTimeResampling = False
+#             NeedsTZCorrection = False #Only correct for TZ when creating the H5 file for the first time. 
+#         if os.path.isfile(filename): # Return the raw file if resampling has already been done
+#             return CN
+#         else:
+#             NeedsTimeResampling = True
+#     else:
+#         print("No hdf file exists with the raw data! Please run the following function before this one: CPC_TSI.Load_to_HDF(RawDataPath,output_h5_filename = 'CPC', TZCorrect = False, InputTZ = 0, OutputTZ = 0,resample_time = False)")
+#         return
+#     
+#     # Correct timezone if necessary
+#     if NeedsTZCorrection:
+#         if CurrentTZ - OutputTZ != 0:
+#             if OutputTZ == 0:
+#                 ToUTC = True
+#             else:
+#                 ToUTC = False
+#             CN = TimeZoneCorrection(CN, CurrentTZ, ConvertToUTC = ToUTC, OutputTZ = 0)
+# 
+# 
+#     NeedsFiltering = False #Initialise
+#     if filtOrRaw.lower() == 'raw':
+#         # Flow calibrations
+#         if not isinstance(CN_flow_check_df,str):
+#             CN = flow_cal(CN,CN_flow_check_df,CN_flow_setpt,polydeg=CN_flow_polyDeg)
+#             NeedsFiltering = True
+#         
+#         # work through mask periods and set values to nan
+#         for i in range(int(len(mask_period_timestamp_list)/2)):
+#             CN.loc[(CN.index >= mask_period_timestamp_list[2*i]) & (CN.index < mask_period_timestamp_list[2*i+1])]= np.nan
+#             NeedsFiltering = True
+#         # Save to file as 1 second filtered data
+#         if NeedsFiltering:
+#             CN.to_hdf(filename_base+'_filt.h5',key = 'cn')
+#     else:
+#         print("Don't know what to load. Please specify either Raw or Filt")
+#         return
+# 
+#     
+#         
+#     if NeedsTimeResampling & (not timeResolution == ''):     
+#         # Check if current time resolution is what is being asked for, if not, resample. If so, floor to nearest interval
+#         current_time_res = (CN.index[1] - CN.index[0]).seconds
+#         if any(substring in timeResolution for substring in ['S', 'sec', 'Sec']):
+#             if int(re.findall('\d+', timeResolution)[0]) == current_time_res:
+#                 if 'Concentration' in CN:
+#                     CN.rename(columns={'Concentration' : filename_base.lower()}, inplace=True)
+#                 ns = 1*1*1000000000 # 1 second in nanoseconds
+#                 CN.index = pd.DatetimeIndex(((CN.index.astype(np.int64) // ns + 1) * ns - ns ))
+#                 return CN
+#         elif any(substring in timeResolution.lower() for substring in ['min']):
+#             if int(re.findall('\d+', timeResolution)[0]) == current_time_res/60:
+#                 if 'Concentration' in CN:
+#                     CN.rename(columns={'Concentration' : filename_base.lower()}, inplace=True)
+#                 ns = 1*60*1000000000 # 1 minute in nanoseconds
+#                 CN.index = pd.DatetimeIndex(((CN.index.astype(np.int64) // ns + 1) * ns - ns))
+#                 return CN
+#         elif any(substring in timeResolution for substring in ['H', 'Hr', 'hr', 'Hour', 'hour']):
+#             if int(re.findall('\d+', timeResolution)[0]) == current_time_res/60/60:
+#                 if 'Concentration' in CN:
+#                     CN.rename(columns={'Concentration' : filename_base.lower()}, inplace=True)
+#                 ns = 60*60*1000000000 #60 minutes in nanoseconds
+#                 CN.index = pd.DatetimeIndex(((CN.index.astype(np.int64) // ns + 1) * ns - ns))
+#                 return CN
+#         elif any(substring in timeResolution for substring in ['D', 'day', 'Day']):
+#             if int(re.findall('\d+', timeResolution)[0]) == current_time_res/60/60/24:
+#                 if 'Concentration' in CN:
+#                     CN.rename(columns={'Concentration' : filename_base.lower()}, inplace=True)
+#                 ns = 24*60*60*1000000000 # 1 day in nanoseconds
+#                 CN.index = pd.DatetimeIndex(((CN.index.astype(np.int64) // ns + 1) * ns - ns))
+#                 return CN
+#         CN = resample_timebase(data = CN, variable = filename_base, time_int=[timeResolution])    
+#         
+#     return CN
+#==============================================================================
+
+
+    
+
+def LoadAndProcess(cn_raw_path = None, 
+                   cn_output_path = None,
+                   cn_output_filetype = 'hdf',
+                   load_from_filetype = 'csv',
                    filename_base = 'CN3', 
-                   filtOrRaw='filt', 
-                   timeResolution='',
-                   mask_period_timestamp_list = [''],
+                   force_reload_from_source = False,
+                   output_time_resolution = '1S',
+                   concat_file_frequency = 'all',
+                   input_filelist = None,
+                   
+                   NeedsTZCorrection = False,
                    CurrentTZ = 0, 
                    OutputTZ = 0,
-                   CN_flow_check_df = '',
-                   CN_flow_setpt = 1500,
-                   CN_flow_polyDeg = 2
+                   
+                   mask_period_file = None,
+                   mask_period_timestamp_df = None,
+                   
+                   flow_cal_file = None,
+                   flow_cal_df = None,
+                   CN_flow_setpt = 1000,
+                   CN_flow_polyDeg = 2,
+                   
+                   plot_each_step = False
                    ):
-    import pandas as pd
-    import numpy as np
-    import os
-    import re
-    import glob
-    os.chdir(CN_path)
-    NeedsTZCorrection=True #Initialise
-    
-    # Check if any h5 file has been produced yet (ie. the initial processing has occurred)
-    if not glob.glob('*.h5'):
-        Load_to_HDF(CN_path,filename_base, InputTZ = CurrentTZ, OutputTZ = OutputTZ)
-    
-    filename = filename_base+'_'+timeResolution+'.h5'
-    filename_1sec = filename_base+'_'+filtOrRaw+'.h5'
+    '''
+    Loads CPC data from csv files exported from AIM, concatenates, then saves 
+    to output files of hdf, netcdf or csv format.
+    Data can then be:
+        - calibrated for flow rates 
+        - correcting for time zone offsets resulting from timezone errors in 
+        exporting data
+        - filtering for logged events
+        - If requested, it will perform exhaust removal (assuming its on the RVI)
+    '''
+    if cn_output_path is None:
+        cn_output_path = cn_raw_path
 
-    if filtOrRaw.lower() == 'filt':
-        if os.path.isfile(filename):
-            CN = pd.read_hdf(filename,key=filename_base)
-            NeedsTimeResampling = False
-            return CN
-        elif os.path.isfile(filename):
-            CN = pd.read_hdf(filename_1sec,key=filename_base)
-            NeedsTimeResampling = True   
-            return CN
-        else:
-            filtOrRaw = 'raw' # filt file not available, produce it!
-            filename_1sec = filename_base+'_'+filtOrRaw+'.h5'
-            
-    if filtOrRaw.lower() == 'raw':
-        if os.path.isfile(filename_1sec):
-            CN = pd.read_hdf(filename_1sec,key=filename_base)
-            NeedsTimeResampling = False
-            NeedsTZCorrection = False #Only correct for TZ when creating the H5 file for the first time. 
-        if os.path.isfile(filename): # Return the raw file if resampling has already been done
-            return CN
-        else:
-            NeedsTimeResampling = True
+    if load_from_filetype == "csv":
+        load_data_to_file(
+                          cn_raw_path = cn_raw_path, 
+                          cn_output_path = cn_output_path,
+                          filename_base = filename_base, 
+                          cn_output_filetype = cn_output_filetype,
+                          force_reload_from_source = force_reload_from_source,
+                          input_filelist = input_filelist,
+                          concat_file_frequency = concat_file_frequency,
+                          InputTZ = CurrentTZ, 
+                          OutputTZ= OutputTZ
+                          )
+
+        # Load data
+        data = load_cn(cn_output_path,cn_output_filetype)
     else:
-        print("No hdf file exists with the raw data! Please run the following function before this one: CPC_TSI.Load_to_HDF(RawDataPath,output_h5_filename = 'CPC', TZCorrect = False, InputTZ = 0, OutputTZ = 0,resample_time = False)")
-        return
+        data = load_cn(cn_raw_path, load_from_filetype)
+    
+    plot_me(data, plot_each_step,'Concentration','raw')
+    
     
     # Correct timezone if necessary
     if NeedsTZCorrection:
@@ -469,61 +635,462 @@ def LoadAndProcess(CN_path,
                 ToUTC = True
             else:
                 ToUTC = False
-            CN = TimeZoneCorrection(CN, CurrentTZ, ConvertToUTC = ToUTC, OutputTZ = 0)
-
-
-    NeedsFiltering = False #Initialise
-    if filtOrRaw.lower() == 'raw':
-        # Flow calibrations
-        if not isinstance(CN_flow_check_df,str):
-            CN = flow_cal(CN,CN_flow_check_df,CN_flow_setpt,polydeg=CN_flow_polyDeg)
-            NeedsFiltering = True
+            data = TimeZoneCorrection(data, 
+                                    CurrentTZ, 
+                                    ConvertToUTC = ToUTC, 
+                                    OutputTZ = 0)
+            
+    # Calculate CN counting uncertainty
+    data = uncertainty_calc(data,
+                                1,
+                                np.sqrt(data['Concentration']))
+    
+    # Perform flow calibration if data is provided
+    if flow_cal_file is not None: 
+        data = flow_cal(data,
+                        flow_cal_file,
+                        cn_raw_path, 
+                        set_flow_rate=CN_flow_setpt,
+                        polydeg=CN_flow_polyDeg
+                        )
+        save_as(data,cn_output_path,'flowCal',cn_output_filetype)
+        plot_me(data, plot_each_step,'Concentration','flow cal')
+    elif flow_cal_df is not None:
+        data = flow_cal(data,
+                        measured_flows_df=flow_cal_df,
+                        set_flow_rate=CN_flow_setpt,
+                        polydeg=CN_flow_polyDeg
+                        )
+        save_as(data,cn_output_path,'flowCal',cn_output_filetype)
+        plot_me(data, plot_each_step,'Concentration','flow cal')
+    
+    # Correct for inlet losses #xkcd
+#    data = inlet_corrections(data, IE)
+#    save_as(data,cn_output_data_path,'IE',cn_output_filetype)
+#
+#   plot_me(data, plot_each_step,'CN Number Conc', 'IE')
+    
+    # Filter for logged events
+    if mask_period_file is not None:
+        data = atmoscripts.log_filter(data,
+                                          cn_raw_path,mask_period_file)
+        save_as(data,cn_output_path,'logFilt',cn_output_filetype)
+        plot_me(data, plot_each_step,'Concentration','log filter')
+    elif mask_period_timestamp_df is not None:
+        data = atmoscripts.log_filter(data,
+                                          log_mask_df=mask_period_timestamp_df)
+        save_as(data,cn_output_path,'logFilt',cn_output_filetype)
+        plot_me(data, plot_each_step,'Concentration','log filter')
         
-        # work through mask periods and set values to nan
-        for i in range(int(len(mask_period_timestamp_list)/2)):
-            CN.loc[(CN.index >= mask_period_timestamp_list[2*i]) & (CN.index < mask_period_timestamp_list[2*i+1])]= np.nan
-            NeedsFiltering = True
-        # Save to file as 1 second filtered data
-        if NeedsFiltering:
-            CN.to_hdf(filename_base+'_filt.h5',key = filename_base)
+        
+    # Filter for exhaust #xkcd
+    
+#    save_as(data,cn_output_path,'exhaustfilt',cn_output_filetype)
+        
+
+    # Resample timebase and calculate uncertainties
+    data = timebase_resampler(data,time_int=output_time_resolution)
+    
+    
+    return data
+
+def plot_me(data, plot_each_step, var=None, title = ''):
+    if plot_each_step:
+        if var is None:
+            # Plot everything
+            plt.plot(data)
+        else:
+            plt.plot(data[var])
+        plt.title(title)
+        plt.show()
+    return
+
+def load_data_to_file(
+                      cn_raw_path = None,
+                      cn_output_path = None,
+                      filename_base = 'cn',
+                      cn_output_filetype = 'h5',
+                      force_reload_from_source = False,
+                      input_filelist = None,
+                      concat_file_frequency = 'all',
+                      InputTZ = 0, 
+                      OutputTZ = 0
+                      ):
+    
+    assert cn_output_filetype in ['hdf','h5','netcdf','nc','csv'], "Don't \
+        recognise filetype to save to. Please use hdf, h5, netcdf or csv"
+    
+    if cn_output_filetype in ['hdf','h5']:
+        filelist_empty = check_filelist('.h5', force_reload_from_source)
+        if filelist_empty:
+            Load_to_HDF(input_path = cn_raw_path,
+                        output_path = cn_output_path,
+                        output_h5_filename = filename_base,
+                        output_file_frequency = concat_file_frequency,
+                        input_filelist=input_filelist,
+                        InputTZ = InputTZ, OutputTZ = OutputTZ,
+                        force_reload_from_source = force_reload_from_source
+                        )
+    
+    elif cn_output_filetype in ['netcdf','nc']:
+        filelist_empty = check_filelist('.nc', force_reload_from_source)
+#        if filelist_empty:
+#            Load_to_NetCDF()
+        print('I havent built this code yet! Please be patient')
+        # xkcd
+        
+    elif cn_output_filetype == 'csv':
+        print('I havent built this code yet! Please be patient')
+        # xkcd
+    return
+
+
+def check_filelist(filetype, reload_from_source):
+    '''
+    Checks if previous files have been created. If not, then return true and 
+    create the new files. If so, and you've been asked to reload_from_source,
+    return true. Otherwise, return false and don't reload the files. 
+    '''
+    filelist = glob.glob('*'+filetype)
+    if len(filelist) > 0 and reload_from_source:
+        # Delete files and return
+        for file in filelist:
+            os.remove(file)
+        filelist_empty = True
+    elif len(filelist) == 0:
+        filelist_empty = True
+        
     else:
-        print("Don't know what to load. Please specify either Raw or Filt")
-        return
+        filelist_empty = False
+    
+    return filelist_empty
 
+            
+def save_as(data,
+            save_path,
+            filename_appendage = '',
+            filetype='hdf'
+            ):
+    '''
+    Saves data to file, reading the original filename, and appending informative
+    text to the filename.
+    For example
+    CN.h5 becomes CN_QC.h5
+    CN.nc becomes CN_QC_flowcal.nc
+    '''
+    assert filetype in ['hdf','h5','netcdf','nc','csv'], "Don't recognise \
+                        filetype to save to. Please use hdf, h5, netcdf or csv"
+    assert save_path is not None, 'You must specify the directory where you \
+                        want to save!'
+    os.chdir(save_path)
     
-        
-    if NeedsTimeResampling & (not timeResolution == ''):     
-        # Check if current time resolution is what is being asked for, if not, resample. If so, floor to nearest interval
-        current_time_res = (CN.index[1] - CN.index[0]).seconds
-        if any(substring in timeResolution for substring in ['S', 'sec', 'Sec']):
-            if int(re.findall('\d+', timeResolution)[0]) == current_time_res:
-                if 'Concentration' in CN:
-                    CN.rename(columns={'Concentration' : filename_base.lower()}, inplace=True)
-                ns = 1*1*1000000000 # 1 second in nanoseconds
-                CN.index = pd.DatetimeIndex(((CN.index.astype(np.int64) // ns + 1) * ns - ns ))
-                return CN
-        elif any(substring in timeResolution.lower() for substring in ['min']):
-            if int(re.findall('\d+', timeResolution)[0]) == current_time_res/60:
-                if 'Concentration' in CN:
-                    CN.rename(columns={'Concentration' : filename_base.lower()}, inplace=True)
-                ns = 1*60*1000000000 # 1 minute in nanoseconds
-                CN.index = pd.DatetimeIndex(((CN.index.astype(np.int64) // ns + 1) * ns - ns))
-                return CN
-        elif any(substring in timeResolution for substring in ['H', 'Hr', 'hr', 'Hour', 'hour']):
-            if int(re.findall('\d+', timeResolution)[0]) == current_time_res/60/60:
-                if 'Concentration' in CN:
-                    CN.rename(columns={'Concentration' : filename_base.lower()}, inplace=True)
-                ns = 60*60*1000000000 #60 minutes in nanoseconds
-                CN.index = pd.DatetimeIndex(((CN.index.astype(np.int64) // ns + 1) * ns - ns))
-                return CN
-        elif any(substring in timeResolution for substring in ['D', 'day', 'Day']):
-            if int(re.findall('\d+', timeResolution)[0]) == current_time_res/60/60/24:
-                if 'Concentration' in CN:
-                    CN.rename(columns={'Concentration' : filename_base.lower()}, inplace=True)
-                ns = 24*60*60*1000000000 # 1 day in nanoseconds
-                CN.index = pd.DatetimeIndex(((CN.index.astype(np.int64) // ns + 1) * ns - ns))
-                return CN
-        CN = resample_timebase(data = CN, variable = filename_base, time_int=[timeResolution])    
-        
-    return CN
     
+    if filetype in ['hdf','h5']:
+        fname = get_filenamebase('h5', filename_appendage)
+                
+        # Save data to file
+        data.to_hdf(fname, key='cn')
+    
+    elif filetype in ['netcdf','nc']:
+        # Get the filename of the most recently created file
+        fname = get_filenamebase('nc', filename_appendage)
+        
+        # Save data to file
+        # xkcd
+        
+    elif filetype == 'csv':
+        fname = get_filenamebase('csv', filename_appendage)
+        
+        # Save data to file
+        data.to_csv(fname)
+        
+    return
+
+def get_filenamebase(ext, appendage):
+    '''
+    Get's the filename of the most recently created file and produces the new
+    filename
+    '''
+    
+    filelist = glob.glob('*.'+ ext)
+    
+    if len(filelist) == 0:
+        return 'CN_unknown' + appendage + '.' + ext
+    else:
+        # Get the filename of the most recently created file
+        fname_old = max(filelist, key=os.path.getctime).split('.')
+        
+        # if the version of the file is already there, overwrite
+        if appendage in fname_old[0]:
+            return fname_old[0] + '.' + fname_old[1]
+        else:
+            return fname_old[0] + '_' + appendage + '.' + fname_old[1]
+
+#==============================================================================
+# def resample_timebase(data=0,RawDataPath='',input_h5_filename='',variable='CN',time_int='default'):
+#     ### Time resampling
+# 
+#     import pandas as pd
+#     import numpy as np
+#     import os
+#     
+#     if not isinstance(data, pd.DataFrame): #if no data provided, try to load from file
+#         if (not RawDataPath == '') & (not input_h5_filename == ''):
+#             os.chdir(RawDataPath)
+#             if os.path.isfile(input_h5_filename): 
+#                 data = pd.read_hdf(input_h5_filename+'.h5', key='cn')
+#         else:
+#             print("Please input either a dataframe or a datapath and filename where data can be found")
+#             return
+#     
+#     
+#     # define time resampling intervals unless specified in function input
+#     if time_int == 'default':
+#         time_int = ['5S','1Min', '5Min', '10Min', '30Min', '1H', '3H', '6H', '12H', '1D']    
+#     
+#     
+#     # define MAD calculation
+#     mad = lambda x: np.fabs(x - x.median()).median() 
+#     
+#     # define time resampling intervals
+#     i_lim = len(time_int)
+#     for i in range(0, i_lim):
+#         t_int = time_int[i]    
+#         # Initialise    
+#         data_resamp = data['Concentration'].resample(t_int,fill_method=None, how=['count'])
+#         data_resamp.rename(columns={'count' : variable+'_count'},inplace=True)
+#         # Resample with stats    
+#         data_resamp[variable+'_median'] = data.resample(t_int,fill_method=None).median()
+#         data_resamp[variable+'_mad'] = data.resample(t_int,fill_method=None).apply(mad)
+#         data_resamp[variable+'_mean'] = data.resample(t_int,fill_method=None).mean()
+#         data_resamp[variable+'_std'] = data.resample(t_int,fill_method=None).std()
+#         
+#         #del data_resamp['Concentration']
+#         
+#         # Save to file
+#         if isinstance(data,pd.DataFrame):        
+#             outputfilename = variable+'_'+time_int[i]+'.h5'
+#         else:
+#             outputfilename = input_h5_filename+'_'+ time_int[i] +'.h5'
+#         data_resamp.to_hdf(outputfilename, key='cn')
+#     
+#     return data_resamp
+#==============================================================================
+def timebase_resampler(
+                      data=0,
+                      RawDataPath='',
+                      input_h5_filename='',
+                      variable='cn',
+                      time_int='default'
+                      ):
+    ''' 
+    Time resampling
+    '''
+    #if no data provided, try to load from file
+    if not isinstance(data, pd.DataFrame):
+        if (not RawDataPath == '') & (not input_h5_filename == ''):
+            os.chdir(RawDataPath)
+            if os.path.isfile(input_h5_filename+'.h5'): 
+                data = pd.read_hdf(input_h5_filename+'.h5', key='cn')
+        else:
+            print("Please input either a dataframe or \
+                  a datapath and filename where data can be found")
+            return
+    
+    
+    # define time resampling intervals unless specified in function input
+    if time_int == 'default':
+        time_int = ['5S','1Min', '5Min', '10Min', \
+                    '30Min', '1H', '3H', '6H', '12H', '1D']    
+    elif type(time_int[0]) == bool:
+        from itertools import compress
+        gui_time_options = ['1S','5S','10S','15S','30S',
+                             '1Min','5Min','10Min','15Min','30Min',
+                             '1H','3H','6H','12H','1D']
+        time_int = list(compress(gui_time_options, time_int))
+    elif type(time_int) == str:
+        time_int = [time_int]
+    
+    # define MAD calculation
+    mad = lambda x: np.fabs(x - x.median()).median() 
+    
+    # define square root of the sum of squares calculation (root mean square numerator)
+    rmsn = lambda x: np.sqrt(np.sum(x**2))
+    
+    for time in time_int:
+        if time != '1S':
+            data_temp = data.resample(time,fill_method=None).apply(rmsn)
+            data_resamp = pd.DataFrame(data_temp['cn_sigma'])
+            data_resamp.columns = ['cn_rmsn']
+            del data_temp
+            for column in data.columns:
+                if column != 'cn_sigma':    
+                    sub_cn = pd.DataFrame(data[column].copy())
+                    if column == 'Concentration':
+                        prefix = 'cn'
+                    else:
+                        prefix = column
+                    data_resamp[prefix+'_med'] = \
+                        sub_cn.resample(time,fill_method=None).median()
+                    data_resamp[prefix+'_mad'] = \
+                        sub_cn.resample(time,fill_method=None).apply(mad)
+                    data_resamp[prefix+'_avg'] = \
+                        sub_cn.resample(time,fill_method=None).mean()
+                    data_resamp[prefix+'_std'] = \
+                        sub_cn.resample(time,fill_method=None).std()
+                    data_resamp[prefix+'_count'] = \
+                        sub_cn.resample(time,fill_method=None).count()
+                    
+            
+            # Calculate uncertainty:
+            data_resamp = uncertainty_calc_time_resample(
+                                        data_resamp,
+                                        'rmsn',
+                                        'cn_count',
+                                        'mad',
+                                        col_name = 'cn_med',
+                                        output_sigma_name='sigma_med'
+                                                    )
+            data_resamp = uncertainty_calc_time_resample(
+                                        data_resamp,
+                                        'rmsn',
+                                        'cn_count',
+                                        'std',
+                                        col_name = 'cn_avg',
+                                        output_sigma_name='sigma_avg'
+                                                    )
+            
+            # Reorder columns based on name:
+            data_resamp.sort_index(axis=1)
+            
+            # Remove temporary calculation
+            del data_resamp['cn_rmsn']
+            # Save to file
+            save_resampled_data(data,data_resamp,time,
+                                variable,input_h5_filename)
+       
+    try:
+        
+        return data_resamp
+    except:
+        return data
+    
+def uncertainty_calc_time_resample(data, 
+                     abs_sigma, 
+                     sigma_divisor,
+                     dev_stat = 'std',
+                     col_name = 'Concentration', 
+                     output_sigma_name = 'cn_sigma'
+                     ):
+    '''
+    Propagates measurement uncertainty and adds statistical uncertainty:
+        
+    '''
+    # Find the rmsn column
+    rmsn_cols = [col for col in data.columns if abs_sigma in col]
+    # Find the count column
+    count_cols = [col for col in data.columns if sigma_divisor in col]
+    # Find the desired population deviation stat to use in sigma/sqrt(n)
+    dev_cols = [col for col in data.columns if dev_stat in col]
+    # Find the root names of each supersaturation
+    ss_root_names = [col.split("_"+abs_sigma)[0] for col in rmsn_cols]
+    
+    # Sort columns
+    rmsn_cols.sort()
+    count_cols.sort()
+    dev_cols.sort()
+    ss_root_names.sort()
+    
+    for i in range(0, len(ss_root_names)):
+        data[ss_root_names[i]+"_"+output_sigma_name] = \
+                    np.sqrt(
+                            (data[rmsn_cols[i]]/data[count_cols[i]])**2
+                            +
+                            (data[dev_cols[i]]/np.sqrt(data[count_cols[i]]))**2
+                            )
+    
+    return data
+
+            
+def uncertainty_calc(data, 
+                 abs_sigma, 
+                 sigma_divisor,
+                 col_name = 'Concentration', 
+                 output_sigma_name = 'cn_sigma'
+                 ):     
+    '''
+    Calculates and propogates uncertainty for each calibration process
+    '''
+    if 'cn_sigma' in data.columns:
+        data[output_sigma_name] = data[col_name] * \
+                            (
+                            (abs_sigma/sigma_divisor)**2 
+                            + 
+                            (data['cn_sigma']/data[col_name])**2
+                            )**0.5
+    else: #Initialise
+        data['cn_sigma'] = data['Concentration'] * \
+                            ((abs_sigma/sigma_divisor)**2)**0.5
+                            
+    return data
+
+def save_resampled_data(data, data_resamp,time_int,
+                        variable = None, input_h5_filename = None):
+    if isinstance(data,pd.DataFrame):        
+        outputfilename = variable+'_'+time_int+'.h5'
+    else:
+        outputfilename = input_h5_filename+'_'+ time_int +'.h5'
+    data_resamp.to_hdf(outputfilename, key=variable)
+    
+    return
+
+def load_basic_csv(filename = None, path = None, file_FULLPATH=None):
+    '''
+    Loads flow calibration data (i.e. timestamps and flow from flow checks)
+    from file. There is an assumption that the calibration file (in csv) has 
+    been created using excel from data extracted from the text log file.
+    Input either the full path to the filename, or the folder path and the 
+    filename
+    '''
+    if file_FULLPATH is None:
+        msg = 'Please specify either the full path to the flow cal file, or \
+               the calibration filename with the folder path'
+        assert filename is not None, msg
+        assert path is not None, msg
+               
+    
+        file_FULLPATH = path+filename
+    
+    
+    assert os.path.isfile(file_FULLPATH), \
+            'Flow cal file does not exists! Exiting'
+    
+    df = pd.read_csv(file_FULLPATH, delimiter = ',')        
+    
+    return df
+
+
+
+def load_manual_mask(filename = None, path = None, file_FULLPATH=None):
+    '''
+    Loads manual mask data (i.e. start & end timestamps and event description)
+    from file. There is an assumption that the mask file (in csv) has 
+    been created using excel from data extracted from the text log file.
+    Input either the full path to the filename, or the folder path and the 
+    filename
+    '''
+    df = load_basic_csv(filename, path, file_FULLPATH)
+    return df
+    
+def load_flow_cals(filename = None, path = None, file_FULLPATH=None):
+    '''
+    Loads flow calibration data (i.e. timestamps and flow from flow checks)
+    from file. There is an assumption that the calibration file (in csv) has 
+    been created using excel from data extracted from the text log file.
+    Input either the full path to the filename, or the folder path and the 
+    filename
+    '''
+    df = load_basic_csv(filename, path, file_FULLPATH)
+    df = df.set_index(df.columns[0])
+    df.columns = ['flow rate']
+    return df
