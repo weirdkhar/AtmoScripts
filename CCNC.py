@@ -1150,8 +1150,11 @@ def timebase_resampler(
         for time in time_int:
             if time != '1S':
                 data_temp = data.resample(time,fill_method=None).apply(rmsn)
-                data_resamp = pd.DataFrame(data_temp['ccn_sigma'])
-                data_resamp.columns = ['ccn_rmsn']
+                if 'cn_sigma' in data_temp:
+                    data_resamp = pd.DataFrame(data_temp['ccn_sigma'])
+                    data_resamp.columns = ['ccn_rmsn']
+                else:
+                    data_resamp['ccn_rmsn'] = 0 # if no processing has been done previously
                 del data_temp
                 for column in data.columns:
                     if column != 'ccn_sigma':    
