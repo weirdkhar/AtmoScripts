@@ -210,80 +210,89 @@ def LoadAndProcess(ccn_raw_path = None,
                          force_reload_from_source,
                          input_filelist=input_filelist
                          )
-        # Load data
-        ccn_data = load_ccn(ccn_output_path,ccn_output_filetype)
-    else:
-        ccn_data = load_ccn(ccn_raw_path, load_from_filetype)
-    
-    plot_me(ccn_data, plot_each_step,'CCN Number Conc','raw')
-    
-    # Calculate CCN counting uncertainty
-    ccn_data = uncertainty_calc(ccn_data,
-                                1,
-                                np.sqrt(ccn_data['CCN Number Conc']))
-    
-    # QC data for internal parameters and for changes in SS
-    if QC:
-        ccn_data = DataQC(ccn_data)
-        save_as(ccn_data,ccn_output_path,'QC',ccn_output_filetype)
-    
-    plot_me(ccn_data, plot_each_step,'CCN Number Conc', 'QC')
-    
-    # Perform flow calibration if data is provided
-    if flow_cal_file is not None: 
-        ccn_data = flow_cal(ccn_data,
-                            flow_cal_file,
-                            ccn_raw_path,
-                            set_flow_rate = flow_setpt,
-                            polydeg=flow_polyDeg)
-        save_as(ccn_data,ccn_output_path,'flowCal',ccn_output_filetype)
-        plot_me(ccn_data, plot_each_step,'CCN Number Conc','flow cal')
-    elif flow_cal_df is not None:
-        ccn_data = flow_cal(ccn_data,
-                            measured_flows_df=flow_cal_df,
-                            set_flow_rate = flow_setpt,
-                            polydeg=flow_polyDeg
-                            )
-        save_as(ccn_data,ccn_output_path,'flowCal',ccn_output_filetype)
-        plot_me(ccn_data, plot_each_step,'CCN Number Conc','flow cal')
-    
-    # Calibrate supersaturation
-    ccn_data = ss_cal(ccn_data, press_meas, press_cal)
-    save_as(ccn_data,ccn_output_path,'ssCal',ccn_output_filetype)
-    
-    
-    # Correct for inlet losses #xkcd
-#    ccn_data = inlet_corrections(ccn_data, IE)
-#    save_as(ccn_data,ccn_output_data_path,'IE',ccn_output_filetype)
-#
-#   plot_me(ccn_data, plot_each_step,'CCN Number Conc', 'IE')
-    
-    # Filter for logged events
-    if mask_period_file is not None:
-        ccn_data = atmoscripts.log_filter(ccn_data,
-                                          ccn_raw_path,mask_period_file)
-        save_as(ccn_data,ccn_output_path,'logFilt',ccn_output_filetype)
-        plot_me(ccn_data, plot_each_step,'CCN Number Conc','log filter')
-    elif mask_period_timestamp_df is not None:
-        ccn_data = atmoscripts.log_filter(ccn_data,
-                                          log_mask_df=mask_period_timestamp_df)
-        save_as(ccn_data,ccn_output_path,'logFilt',ccn_output_filetype)
-        plot_me(ccn_data, plot_each_step,'CCN Number Conc','log filter')
-        
-        
-    # Filter for exhaust #xkcd
-    
-#    save_as(ccn_data,ccn_output_path,'exhaustfilt',ccn_output_filetype)
-    
 
-    # Separate into different supersaturations
-    ccn_data = ss_split(ccn_data, split_by_supersaturation)
-    save_as(ccn_data,ccn_output_path,'ssSplit',ccn_output_filetype)
-    plot_me(ccn_data, plot_each_step,None,'SS Split')
+    raw_filelist = get_raw_filelist(ccn_output_path,ccn_output_filetype, 'raw')
+
+    for file in raw_filelist:    
+        # Load data
+        if load_from_filetype == "csv":
+            ccn_data = load_ccn(ccn_output_path,
+                                ccn_output_filetype, 
+                                substring=file)
+        else:
+            ccn_data = load_ccn(ccn_raw_path, 
+                                load_from_filetype,
+                                substring=file)
+        
+        plot_me(ccn_data, plot_each_step,'CCN Number Conc','raw')
+        
+        # Calculate CCN counting uncertainty
+        ccn_data = uncertainty_calc(ccn_data,
+                                    1,
+                                    np.sqrt(ccn_data['CCN Number Conc']))
+        
+        # QC data for internal parameters and for changes in SS
+        if QC:
+            ccn_data = DataQC(ccn_data)
+            save_as(ccn_data,ccn_output_path,'QC',ccn_output_filetype, file)
+        
+        plot_me(ccn_data, plot_each_step,'CCN Number Conc', 'QC')
+        
+        # Perform flow calibration if data is provided
+        if flow_cal_file is not None: 
+            ccn_data = flow_cal(ccn_data,
+                                flow_cal_file,
+                                ccn_raw_path,
+                                set_flow_rate = flow_setpt,
+                                polydeg=flow_polyDeg)
+            save_as(ccn_data,ccn_output_path,'flowCal',ccn_output_filetype, file)
+            plot_me(ccn_data, plot_each_step,'CCN Number Conc','flow cal')
+        elif flow_cal_df is not None:
+            ccn_data = flow_cal(ccn_data,
+                                measured_flows_df=flow_cal_df,
+                                set_flow_rate = flow_setpt,
+                                polydeg=flow_polyDeg
+                                )
+            save_as(ccn_data,ccn_output_path,'flowCal',ccn_output_filetype, file)
+            plot_me(ccn_data, plot_each_step,'CCN Number Conc','flow cal')
+        
+        # Calibrate supersaturation
+        ccn_data = ss_cal(ccn_data, press_meas, press_cal)
+        save_as(ccn_data,ccn_output_path,'ssCal',ccn_output_filetype, file)
+        
+        
+        # Correct for inlet losses #xkcd
+    #    ccn_data = inlet_corrections(ccn_data, IE)
+    #    save_as(ccn_data,ccn_output_data_path,'IE',ccn_output_filetype)
+    #
+    #   plot_me(ccn_data, plot_each_step,'CCN Number Conc', 'IE')
+        
+        # Filter for logged events
+        if mask_period_file is not None:
+            ccn_data = atmoscripts.log_filter(ccn_data,
+                                              ccn_raw_path,mask_period_file)
+            save_as(ccn_data,ccn_output_path,'logFilt',ccn_output_filetype, file)
+            plot_me(ccn_data, plot_each_step,'CCN Number Conc','log filter')
+        elif mask_period_timestamp_df is not None:
+            ccn_data = atmoscripts.log_filter(ccn_data,
+                                        log_mask_df=mask_period_timestamp_df)
+            save_as(ccn_data,ccn_output_path,'logFilt',ccn_output_filetype, file)
+            plot_me(ccn_data, plot_each_step,'CCN Number Conc','log filter')
+            
+            
+        # Filter for exhaust #xkcd
+        
+    #    save_as(ccn_data,ccn_output_path,'exhaustfilt',ccn_output_filetype)
+        
     
-    # Resample timebase and calculate uncertainties
-    ccn_data = timebase_resampler(ccn_data,time_int=output_time_resolution,
-                      split_by_supersaturation = split_by_supersaturation)
+        # Separate into different supersaturations
+        ccn_data = ss_split(ccn_data, split_by_supersaturation)
+        save_as(ccn_data,ccn_output_path,'ssSplit',ccn_output_filetype,file)
+        plot_me(ccn_data, plot_each_step,None,'SS Split')
+        
+        # Resample timebase and calculate uncertainties
+        ccn_data = timebase_resampler(ccn_data,time_int=output_time_resolution,
+                          split_by_supersaturation = split_by_supersaturation)
     
     
     
@@ -300,19 +309,36 @@ def plot_me(ccn_data, plot_each_step, var=None, title = ''):
         plt.show()
     return
 
-
+def get_raw_filelist(ccn_output_path, output_filetype, substring='raw'):
+    '''
+    Retrieves a list of the raw files so that processing can be done on all 
+    of them, not just the last one.
+    '''
+    os.chdir(ccn_output_path)
+    flist = glob.glob('*.'+output_filetype)
+    raw_filelist = [f for f in flist if substring in f]
+    raw_filelist.sort()
+    return raw_filelist
 ###############################################################################
 ### File IO
 ############################################################################### 
 
-def load_ccn(data_path, filetype):
+def load_ccn(data_path = None, filetype = None, substring = None):
     ''' 
     Loads data from concatenated data file.
+    
+    if substring is not none, I select only those files which contain the 
+    specific subsstring in the folder. This helps deal with processing when the 
+    data file is split into monthly, weekly or daily files.
     '''
     os.chdir(data_path)
     # Get most recently updated file:
     filelist = glob.glob('*.'+filetype)
-    fname = min(filelist, key=os.path.getctime)
+    if substring is not None:
+        fname = [f for f in filelist if substring in f]
+        fname = fname[0]
+    else:
+        fname = min(filelist, key=os.path.getctime)
     if filetype in ['hdf','h5']:
         data = pd.read_hdf(fname, key='CCN')
     
@@ -355,6 +381,8 @@ def Load_to_HDF(
     
     if (output_h5_filename is None) or (output_h5_filename == ''):
         output_h5_filename = 'CCN'
+    
+    output_h5_filename = output_h5_filename + '_raw'
     
     
     if not glob.glob('*.h5'): 
@@ -426,7 +454,8 @@ def Load_to_CSV(
 def save_as(data,
             save_path,
             filename_appendage = '',
-            filetype='hdf'
+            filetype='hdf',
+            fname_current = None
             ):
     '''
     Saves data to file, reading the original filename, and appending informative
@@ -443,20 +472,20 @@ def save_as(data,
     
     
     if filetype in ['hdf','h5']:
-        fname = get_ccn_filenamebase('h5', filename_appendage)
+        fname = get_ccn_filenamebase('h5', filename_appendage, fname_current)
                 
         # Save data to file
         data.to_hdf(fname, key='CCN')
     
     elif filetype in ['netcdf','nc']:
         # Get the filename of the most recently created file
-        fname = get_ccn_filenamebase('nc', filename_appendage)
+        fname = get_ccn_filenamebase('nc', filename_appendage, fname_current)
         
         # Save data to file
         # xkcd
         
     elif filetype == 'csv':
-        fname = get_ccn_filenamebase('csv', filename_appendage)
+        fname = get_ccn_filenamebase('csv', filename_appendage, fname_current)
         
         # Save data to file
         data.to_csv(fname)
@@ -849,7 +878,7 @@ def get_unique_periods(filelist, frequency):
         print('Error in get_unique_periods!')
         return
 
-def get_ccn_filenamebase(ext, appendage):
+def get_ccn_filenamebase(ext, appendage, fname_current=None):
     '''
     Get's the filename of the most recently created file and produces the new
     filename
@@ -860,8 +889,15 @@ def get_ccn_filenamebase(ext, appendage):
     if len(filelist) == 0:
         return 'CCN_unknown' + appendage + '.' + ext
     else:
-        # Get the filename of the most recently created file
-        fname_old = max(filelist, key=os.path.getctime).split('.')
+        if fname_current is not None:
+            # Get the most recent version of the current file
+            fname_current_base = fname_current.split('.')[0]
+            fname_current_list = [f for f in filelist if fname_current_base in f]
+            fname_old = max(fname_current_list,key=os.path.getctime)
+            fname_old = fname_old.split('.')
+        else:
+            # Get the filename of the most recently created file
+            fname_old = max(filelist, key=os.path.getctime).split('.')
         
         # if the version of the file is already there, overwrite
         if appendage in fname_old[0]:
