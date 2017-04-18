@@ -801,7 +801,7 @@ def get_week_label(filelist):
     '''
     Extract the week number of each dates in the filelist
     '''
-    dates = [f[13:19] for f in filelist]
+    dates = [f[-16:-10] for f in filelist]
     weeknum = [str(datetime.date(
                         2000+int(day[0:2]),
                         int(day[2:4]),
@@ -822,27 +822,28 @@ def get_week_label(filelist):
     return week_label
     
 def get_day_label(filelist):
-    return [f[13:19] for f in filelist]
+    return [f[-12:-10] for f in filelist]
     
 def get_month_label(filelist):
-    return [f[13:17] for f in filelist]
+    return [f[-14:-12] for f in filelist]
     
 def get_year_label(filelist):
-    return [f[13:15] for f in filelist]
+    return [f[-16:-14] for f in filelist]
   
 def get_unique_periods(filelist, frequency):
-     # Extract all unique values in the filelist (do this using set )    
-    months = set(get_month_label(filelist))  
-    days = set(get_day_label(filelist))
-
-    # Get the iso week numbers of each of the unique days in the filelist  
-    weeklabel = set(get_week_label(filelist))
+    ''' 
+    Extract all unique values in the filelist (do this using set )    
+    '''
         
     if frequency == 'monthly':
+        months = set(get_month_label(filelist))  
         return list(months)
     elif frequency == 'daily':
+        days = set(get_day_label(filelist))
         return list(days)
     elif frequency == 'weekly':
+        # Get the iso week numbers of each of the unique days in the filelist 
+        weeklabel = set(get_week_label(filelist))
         return list(weeklabel)
     else:
         print('Error in get_unique_periods!')
@@ -1154,7 +1155,12 @@ def timebase_resampler(
                     data_resamp = pd.DataFrame(data_temp['ccn_sigma'])
                     data_resamp.columns = ['ccn_rmsn']
                 else:
+                    data_resamp = pd.DataFrame(data_temp.ix[:,0]) # create dataframe
                     data_resamp['ccn_rmsn'] = 0 # if no processing has been done previously
+                    # Find name of data column to remove
+                    del_col = [col for col in data_resamp.columns if 'ccn_rmsn' not in col]
+                    for col in del_col:
+                        del data_resamp[col]
                 del data_temp
                 for column in data.columns:
                     if column != 'ccn_sigma':    
