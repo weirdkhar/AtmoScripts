@@ -340,7 +340,7 @@ def load_ccn(data_path = None, filetype = None, substring = None):
     else:
         fname = min(filelist, key=os.path.getctime)
     if filetype in ['hdf','h5']:
-        data = pd.read_hdf(fname, key='CCN')
+        data = pd.read_hdf(fname, key='ccn')
     
     elif filetype in ['netcdf','nc']:
         # xkcd
@@ -384,54 +384,54 @@ def Load_to_HDF(
     
     output_h5_filename = output_h5_filename + '_raw'
     
+############################################    
+#    if not glob.glob('*.h5'): 
+    if input_filelist is None:
+        os.chdir(RawDataPath)
+        filelist = glob.glob('*.csv')
+    else:
+        filelist = input_filelist
+    filelist.sort()
     
-    if not glob.glob('*.h5'): 
-        if input_filelist is None:
-            os.chdir(RawDataPath)
-            filelist = glob.glob('*.csv')
-        else:
-            filelist = input_filelist
-        filelist.sort()
+    filelist_df = pd.DataFrame(filelist, columns=['filenames'])
+    
+    if concat_file_frequency.lower() == 'monthly':
+        print('Concatenating to monthly files')
+        periods = get_unique_periods(filelist, concat_file_frequency)
+        filelist_df['id'] = get_month_label(filelist)
+   
+    elif concat_file_frequency.lower() == 'weekly':
+        print('Concatenating to weekly files')
+        periods = get_unique_periods(filelist, concat_file_frequency)
+        filelist_df['id'] = get_week_label(filelist)
+    
+    elif concat_file_frequency.lower() == 'daily':
+        print('Concatenating to daily files')
+        periods = get_unique_periods(filelist, concat_file_frequency)
+        filelist_df['id'] = get_day_label(filelist)
         
-        filelist_df = pd.DataFrame(filelist, columns=['filenames'])
+    elif concat_file_frequency.lower() == 'all':
+        # Continue as normal
+        print('Concatenating all files into a single HDF')
+        periods = None
         
-        if concat_file_frequency.lower() == 'monthly':
-            print('Concatenating to monthly files')
-            periods = get_unique_periods(filelist, concat_file_frequency)
-            filelist_df['id'] = get_month_label(filelist)
-       
-        elif concat_file_frequency.lower() == 'weekly':
-            print('Concatenating to weekly files')
-            periods = get_unique_periods(filelist, concat_file_frequency)
-            filelist_df['id'] = get_week_label(filelist)
-        
-        elif concat_file_frequency.lower() == 'daily':
-            print('Concatenating to daily files')
-            periods = get_unique_periods(filelist, concat_file_frequency)
-            filelist_df['id'] = get_day_label(filelist)
-            
-        elif concat_file_frequency.lower() == 'all':
-            # Continue as normal
-            print('Concatenating all files into a single HDF')
-            periods = None
-            
-        
-        else:
-            print("Cannot determine what frequency you want the output file")
-        
-        
-        # Iterate through files
-        if periods is not None: # when output is being broken up
-            periods.sort()
-            for i in range(0, len(periods)):
-                output_h5_filename_ = output_h5_filename + '_' + str(periods[i])
-                filelist_ = list(filelist_df[
-                        filelist_df['id'] == periods[i]]['filenames'])
-        
-                save_ccn_to_hdf(filelist_, output_h5_filename_, resample_timebase)
-        else:
-            save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase)
-        
+    
+    else:
+        print("Cannot determine what frequency you want the output file")
+    
+    
+    # Iterate through files
+    if periods is not None: # when output is being broken up
+        periods.sort()
+        for i in range(0, len(periods)):
+            output_h5_filename_ = output_h5_filename + '_' + str(periods[i])
+            filelist_ = list(filelist_df[
+                    filelist_df['id'] == periods[i]]['filenames'])
+    
+            save_ccn_to_hdf(filelist_, output_h5_filename_, resample_timebase)
+    else:
+        save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase)
+############################################        
     # If no destination path given, write files in raw data path, otherwise
     # move to destination path
     if DestDataPath is not None:
@@ -475,7 +475,7 @@ def save_as(data,
         fname = get_ccn_filenamebase('h5', filename_appendage, fname_current)
                 
         # Save data to file
-        data.to_hdf(fname, key='CCN')
+        data.to_hdf(fname, key='ccn')
     
     elif filetype in ['netcdf','nc']:
         # Get the filename of the most recently created file
@@ -507,7 +507,7 @@ def save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase = None):
         
         data_new, fname_current = read_ccn_csv(filelist)
       
-        data = pd.read_hdf(output_h5_filename +'.h5',key='CCN')
+        data = pd.read_hdf(output_h5_filename +'.h5',key='ccn')
         
         data = data.append(data_new)
     
@@ -522,7 +522,7 @@ def save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase = None):
     data = data.sort_index()
     
     
-    data.to_hdf(output_h5_filename +'.h5', key='CCN')
+    data.to_hdf(output_h5_filename +'.h5', key='ccn')
     print("Writing data to file " + output_h5_filename + ".h5")
 #    
     
@@ -679,7 +679,7 @@ def read_ccn_csv(filelist):
                 # Save new data to file
                 fname_current = 'CCNC_noIndex_temp_'+str(i0)+'to'+str(i+2)+\
                                 'of'+str(len(filelist)+1)+'.h5'
-                data.to_hdf(fname_current, key='CCN')
+                data.to_hdf(fname_current, key='ccn')
                 # Remove the temporary file    
                 if os.path.isfile(fname_previous):
                     try:
@@ -702,7 +702,7 @@ def read_ccn_csv(filelist):
         
         # Save group file
         if needs_final_grouping:
-            data.to_hdf('CCN_group_'+str(j+1)+'of'+str(j1)+'.h5', key='CCN')
+            data.to_hdf('CCN_group_'+str(j+1)+'of'+str(j1)+'.h5', key='ccn')
 
         # Remove last temporary file
         try:
@@ -717,7 +717,7 @@ def read_ccn_csv(filelist):
         
         for j in range(0, j1):
             data_temp = pd.read_hdf('CCN_group_'+str(j+1)+'of'+str(j1)+'.h5', 
-                                    key='CCN')
+                                    key='ccn')
             try:
                 data
             except NameError:
@@ -1060,21 +1060,21 @@ def ss_split(data, split_by_supersaturation = True):
                                  'CCN Number Conc'\
                                  ]]
         
-        # Concatenate each df in the dictionary
-        split_data = pd.concat(d,axis=1)
-        
-        # Remove multi-indexing
-        split_data.columns = split_data.columns.get_level_values(0)
-        
-        # Grab the uncertainty too:
-        uncert_cols = ['ccn_sigma','ccn_sigma_med','ccn_sigma_avg']
-        for col in uncert_cols:
-            if col in data:
-                uncert = data[col]
-                uncert = uncert.dropna()
-                split_data[col] = uncert
-        
-        return split_data
+                # Concatenate each df in the dictionary
+                split_data = pd.concat(d,axis=1)
+                
+                # Remove multi-indexing
+                split_data.columns = split_data.columns.get_level_values(0)
+                
+                # Grab the uncertainty too:
+                uncert_cols = ['ccn_sigma','ccn_sigma_med','ccn_sigma_avg']
+                for col in uncert_cols:
+                    if col in data:
+                        uncert = data[col]
+                        uncert = uncert.dropna()
+                        split_data[col] = uncert
+                
+                return split_data
     else:
         return data
 
