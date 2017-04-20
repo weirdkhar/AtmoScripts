@@ -35,6 +35,8 @@ def Load_to_HDF(input_path= None,
     if (output_h5_filename is None) or (output_h5_filename == ''):
         output_h5_filename = 'CPC'
         
+    output_h5_filename = output_h5_filename + '_raw'
+        
     if force_reload_from_source:
         remove_previous_output('h5',force_reload_from_source)
     
@@ -68,7 +70,7 @@ def Load_to_HDF(input_path= None,
         pickle.dump(filelist, f)
 
     if resample_time:    
-        resample_timebase(input_path, output_h5_filename,variable = output_h5_filename,time_int=['5S'])
+        timebase_resampler(input_path, output_h5_filename,variable = output_h5_filename,time_int=['5S'])
     
     return 
 
@@ -619,77 +621,81 @@ def LoadAndProcess(cn_raw_path = None,
                           InputTZ = CurrentTZ, 
                           OutputTZ= OutputTZ
                           )
+    
+    raw_filelist = get_raw_filelist(cn_output_path,cn_output_filetype, 'raw')
 
+    for file in raw_filelist:    
         # Load data
-        data = load_cn(cn_output_path,cn_output_filetype)
-    else:
-        data = load_cn(cn_raw_path, load_from_filetype)
-    
-    plot_me(data, plot_each_step,'Concentration','raw')
-    
-    
-    # Correct timezone if necessary
-    if NeedsTZCorrection:
-        if CurrentTZ - OutputTZ != 0:
-            if OutputTZ == 0:
-                ToUTC = True
-            else:
-                ToUTC = False
-            data = TimeZoneCorrection(data, 
-                                    CurrentTZ, 
-                                    ConvertToUTC = ToUTC, 
-                                    OutputTZ = 0)
+        if load_from_filetype == "csv":
+            data = load_cn(cn_output_path,cn_output_filetype)
+        else:
+            data = load_cn(cn_raw_path, load_from_filetype)
+        
+        plot_me(data, plot_each_step,'Concentration','raw')
+        
+        
+        # Correct timezone if necessary
+        if NeedsTZCorrection:
+            if CurrentTZ - OutputTZ != 0:
+                if OutputTZ == 0:
+                    ToUTC = True
+                else:
+                    ToUTC = False
+                data = TimeZoneCorrection(data, 
+                                        CurrentTZ, 
+                                        ConvertToUTC = ToUTC, 
+                                        OutputTZ = 0)
+                
+        # Calculate CN counting uncertainty
+        data = uncertainty_calc(data,
+                                    1,
+                                    np.sqrt(data['Concentration']))
+        
+        # Perform flow calibration if data is provided
+        if flow_cal_file is not None: 
+            data = flow_cal(data,
+                            flow_cal_file,
+                            cn_raw_path, 
+                            set_flow_rate=CN_flow_setpt,
+                            polydeg=CN_flow_polyDeg
+                            )
+            save_as(data,cn_output_path,'flowCal',cn_output_filetype, file)
+            plot_me(data, plot_each_step,'Concentration','flow cal')
+        elif flow_cal_df is not None:
+            data = flow_cal(data,
+                            measured_flows_df=flow_cal_df,
+                            set_flow_rate=CN_flow_setpt,
+                            polydeg=CN_flow_polyDeg
+                            )
+            save_as(data,cn_output_path,'flowCal',cn_output_filetype, file)
+            plot_me(data, plot_each_step,'Concentration','flow cal')
+        
+        # Correct for inlet losses #xkcd
+    #    data = inlet_corrections(data, IE)
+    #    save_as(data,cn_output_data_path,'IE',cn_output_filetype)
+    #
+    #   plot_me(data, plot_each_step,'CN Number Conc', 'IE')
+        
+        # Filter for logged events
+        if mask_period_file is not None:
+            data = atmoscripts.log_filter(data,
+                                              cn_raw_path,mask_period_file)
+            save_as(data,cn_output_path,'logFilt',cn_output_filetype, file)
+            plot_me(data, plot_each_step,'Concentration','log filter')
+        elif mask_period_timestamp_df is not None:
+            data = atmoscripts.log_filter(data,
+                                              log_mask_df=mask_period_timestamp_df)
+            save_as(data,cn_output_path,'logFilt',cn_output_filetype, file)
+            plot_me(data, plot_each_step,'Concentration','log filter')
             
-    # Calculate CN counting uncertainty
-    data = uncertainty_calc(data,
-                                1,
-                                np.sqrt(data['Concentration']))
-    
-    # Perform flow calibration if data is provided
-    if flow_cal_file is not None: 
-        data = flow_cal(data,
-                        flow_cal_file,
-                        cn_raw_path, 
-                        set_flow_rate=CN_flow_setpt,
-                        polydeg=CN_flow_polyDeg
-                        )
-        save_as(data,cn_output_path,'flowCal',cn_output_filetype)
-        plot_me(data, plot_each_step,'Concentration','flow cal')
-    elif flow_cal_df is not None:
-        data = flow_cal(data,
-                        measured_flows_df=flow_cal_df,
-                        set_flow_rate=CN_flow_setpt,
-                        polydeg=CN_flow_polyDeg
-                        )
-        save_as(data,cn_output_path,'flowCal',cn_output_filetype)
-        plot_me(data, plot_each_step,'Concentration','flow cal')
-    
-    # Correct for inlet losses #xkcd
-#    data = inlet_corrections(data, IE)
-#    save_as(data,cn_output_data_path,'IE',cn_output_filetype)
-#
-#   plot_me(data, plot_each_step,'CN Number Conc', 'IE')
-    
-    # Filter for logged events
-    if mask_period_file is not None:
-        data = atmoscripts.log_filter(data,
-                                          cn_raw_path,mask_period_file)
-        save_as(data,cn_output_path,'logFilt',cn_output_filetype)
-        plot_me(data, plot_each_step,'Concentration','log filter')
-    elif mask_period_timestamp_df is not None:
-        data = atmoscripts.log_filter(data,
-                                          log_mask_df=mask_period_timestamp_df)
-        save_as(data,cn_output_path,'logFilt',cn_output_filetype)
-        plot_me(data, plot_each_step,'Concentration','log filter')
+            
+        # Filter for exhaust #xkcd
         
-        
-    # Filter for exhaust #xkcd
+    #    save_as(data,cn_output_path,'exhaustfilt',cn_output_filetype, file)
+            
     
-#    save_as(data,cn_output_path,'exhaustfilt',cn_output_filetype)
-        
-
-    # Resample timebase and calculate uncertainties
-    data = timebase_resampler(data,time_int=output_time_resolution)
+        # Resample timebase and calculate uncertainties
+        data = timebase_resampler(data,time_int=output_time_resolution)
     
     
     return data
@@ -704,6 +710,17 @@ def plot_me(data, plot_each_step, var=None, title = ''):
         plt.title(title)
         plt.show()
     return
+
+def get_raw_filelist(cn_output_path, output_filetype, substring='raw'):
+    '''
+    Retrieves a list of the raw files so that processing can be done on all 
+    of them, not just the last one.
+    '''
+    os.chdir(cn_output_path)
+    flist = glob.glob('*.'+output_filetype)
+    raw_filelist = [f for f in flist if substring in f]
+    raw_filelist.sort()
+    return raw_filelist
 
 def load_data_to_file(
                       cn_raw_path = None,
@@ -769,7 +786,8 @@ def check_filelist(filetype, reload_from_source):
 def save_as(data,
             save_path,
             filename_appendage = '',
-            filetype='hdf'
+            filetype='hdf',
+            fname_current = None
             ):
     '''
     Saves data to file, reading the original filename, and appending informative
@@ -786,27 +804,27 @@ def save_as(data,
     
     
     if filetype in ['hdf','h5']:
-        fname = get_filenamebase('h5', filename_appendage)
+        fname = get_filenamebase('h5', filename_appendage, fname_current)
                 
         # Save data to file
         data.to_hdf(fname, key='cn')
     
     elif filetype in ['netcdf','nc']:
         # Get the filename of the most recently created file
-        fname = get_filenamebase('nc', filename_appendage)
+        fname = get_filenamebase('nc', filename_appendage, fname_current)
         
         # Save data to file
         # xkcd
         
     elif filetype == 'csv':
-        fname = get_filenamebase('csv', filename_appendage)
+        fname = get_filenamebase('csv', filename_appendage, fname_current)
         
         # Save data to file
         data.to_csv(fname)
         
     return
 
-def get_filenamebase(ext, appendage):
+def get_filenamebase(ext, appendage, fname_current=None):
     '''
     Get's the filename of the most recently created file and produces the new
     filename
@@ -817,9 +835,16 @@ def get_filenamebase(ext, appendage):
     if len(filelist) == 0:
         return 'CN_unknown' + appendage + '.' + ext
     else:
-        # Get the filename of the most recently created file
-        fname_old = max(filelist, key=os.path.getctime).split('.')
-        
+        if fname_current is not None:
+            # Get the most recent version of the current file
+            fname_current_base = fname_current.split('.')[0]
+            fname_current_list = [f for f in filelist if fname_current_base in f]
+            fname_old = max(fname_current_list,key=os.path.getctime)
+            fname_old = fname_old.split('.')
+        else:
+            # Get the filename of the most recently created file
+            fname_old = max(filelist, key=os.path.getctime).split('.')
+            
         # if the version of the file is already there, overwrite
         if appendage in fname_old[0]:
             return fname_old[0] + '.' + fname_old[1]
