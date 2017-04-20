@@ -1,1 +1,1 @@
-python h:\code\AtmoScripts\ccnc_gui.py
+python h:\code\AtmoScripts\gui_ccnc.py
