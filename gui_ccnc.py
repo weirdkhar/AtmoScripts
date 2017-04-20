@@ -110,7 +110,7 @@ class ccn_processing(ttk.Frame):
 ### When debugging, comment out from here to the next break.
 ### When finished, uncomment it so that the status window works.
 #######################        
-#        ''' UNCOMMENT WHEN FINISHED DEBUGGING
+        ''' UNCOMMENT WHEN FINISHED DEBUGGING
         t = threading.Thread(target = self.loadAndProcess_Multithread,
                              args=(output_filetype,
                                    output_time_res,
@@ -126,7 +126,7 @@ class ccn_processing(ttk.Frame):
                                concat_file_freq,
                                mask_df,
                                flow_cal_df):
-#        '''
+        '''
 #######################
 ### When debugging, comment out to here.
 ### When finished, uncomment it so that the status window works.
@@ -164,6 +164,9 @@ class ccn_processing(ttk.Frame):
         '''Prompts user to select input files'''
         self.files_raw = filedialog.askopenfilenames()
         self.raw_path = os.path.dirname(self.files_raw[0])
+        
+        # remove previous input
+        self.lb_openFiles.delete(0,tk.END)
         
         # Update the text box
         for i in range(0, len(self.files_raw)):
