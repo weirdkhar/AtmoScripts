@@ -562,7 +562,7 @@ than the measurement computer's time zone settings."
 ##-----------------------------------------------------------
     def _build_status_window(self):
         self.w_status = tk.Toplevel()
-        self.w_status.title('CCN Processing Status')
+        self.w_status.title('CPC Processing Status')
         self.w_status.geometry("800x500")
         
         self.w_status.txt_status = tk.Text(self.w_status, wrap='word')
