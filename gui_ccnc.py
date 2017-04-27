@@ -110,7 +110,7 @@ class ccn_processing(ttk.Frame):
 ### When debugging, comment out from here to the next break.
 ### When finished, uncomment it so that the status window works.
 #######################        
-        ''' UNCOMMENT WHEN FINISHED DEBUGGING
+#        ''' UNCOMMENT WHEN FINISHED DEBUGGING
         t = threading.Thread(target = self.loadAndProcess_Multithread,
                              args=(output_filetype,
                                    output_time_res,
@@ -126,7 +126,7 @@ class ccn_processing(ttk.Frame):
                                concat_file_freq,
                                mask_df,
                                flow_cal_df):
-        '''
+#        '''
 #######################
 ### When debugging, comment out to here.
 ### When finished, uncomment it so that the status window works.
@@ -321,7 +321,7 @@ class ccn_processing(ttk.Frame):
                                 values=file_freq, 
                                 state='readonly', 
                                 width = 15)
-        self.cb_file_freq.current(0)  # set selection
+        self.cb_file_freq.current(2)  # set selection
         self.cb_file_freq.pack(pady=5, padx=10, side=tk.LEFT)
         self.cb_file_freq.place(rely=0.26, relx=0.375)
 
