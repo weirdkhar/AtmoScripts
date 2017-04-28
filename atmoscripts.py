@@ -224,9 +224,13 @@ def variable_timebase_resample(data,
     
 def read_filelist_from_file(filelist_filename = 'files_loaded.txt'):
     import pickle
-    with open(filelist_filename, 'rb') as f:
+    try:
+        with open(filelist_filename, 'rb') as f:
             files_already_loaded = pickle.load(f) 
-    return files_already_loaded
+        return files_already_loaded
+    except:
+        return ['']
+    
     
 def write_filelist_to_file(filelist, filelist_filename = 'files_loaded.txt'):
     import pickle
