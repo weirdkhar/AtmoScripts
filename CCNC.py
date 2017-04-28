@@ -198,6 +198,10 @@ def LoadAndProcess(ccn_raw_path = None,
     if ccn_output_path is None:
         ccn_output_path = ccn_raw_path
     
+    if ccn_raw_path is None:
+        input_str_list = input_filelist[0].split('/')
+        ccn_raw_path = '/'.join(input_str_list[:-1])+'/'
+    
     if load_from_filetype == "csv":
         # Concatenate csv files
         concatenate_from_csv(
@@ -210,20 +214,34 @@ def LoadAndProcess(ccn_raw_path = None,
                          force_reload_from_source,
                          input_filelist=input_filelist
                          )
-
-    raw_filelist = get_raw_filelist(ccn_output_path,ccn_output_filetype, 'raw')
+        raw_filelist = get_raw_filelist(ccn_output_path,
+                                        ccn_output_filetype, 
+                                        substring = 'raw')
+    elif load_from_filetype in ['h5','hdf']:
+        if input_filelist is None:
+            raw_filelist = get_raw_filelist(ccn_raw_path,
+                                        load_from_filetype, 
+                                        substring = '.')
+        else:
+            raw_filelist = list(input_filelist)
+    
 
     for file in raw_filelist:    
         # Load data
-        if load_from_filetype == "csv":
-            ccn_data = load_ccn(ccn_output_path,
-                                ccn_output_filetype, 
-                                substring=file)
-        else:
-            ccn_data = load_ccn(ccn_raw_path, 
+        if os.path.isfile(file):
+            ccn_data = load_ccn(ccn_raw_path,
                                 load_from_filetype,
-                                substring=file)
-        
+                                filepath = file)
+        else:
+            if load_from_filetype == "csv":
+                ccn_data = load_ccn(ccn_output_path,
+                                    ccn_output_filetype, 
+                                    substring=file)
+            else:
+                ccn_data = load_ccn(ccn_raw_path, 
+                                    load_from_filetype,
+                                    substring=file)
+            
         plot_me(ccn_data, plot_each_step,'CCN Number Conc','raw')
         
         # Calculate CCN counting uncertainty
@@ -323,7 +341,11 @@ def get_raw_filelist(ccn_output_path, output_filetype, substring='raw'):
 ### File IO
 ############################################################################### 
 
-def load_ccn(data_path = None, filetype = None, substring = None):
+def load_ccn(data_path = None, 
+             filetype = None, 
+             substring = None, 
+             filepath = None
+             ):
     ''' 
     Loads data from concatenated data file.
     
@@ -331,14 +353,26 @@ def load_ccn(data_path = None, filetype = None, substring = None):
     specific subsstring in the folder. This helps deal with processing when the 
     data file is split into monthly, weekly or daily files.
     '''
-    os.chdir(data_path)
-    # Get most recently updated file:
-    filelist = glob.glob('*.'+filetype)
-    if substring is not None:
-        fname = [f for f in filelist if substring in f]
-        fname = fname[0]
+    if filepath is not None:
+        if os.path.isfile(filepath):
+            fname = filepath
     else:
-        fname = min(filelist, key=os.path.getctime)
+        os.chdir(data_path)
+        # Get most recently updated file:
+        filelist = glob.glob('*.'+filetype)
+        if substring is not None:
+            fname = [f for f in filelist if substring in f]
+            fname = fname[0]
+        else:
+            fname = min(filelist, key=os.path.getctime)
+    
+    # Check that filetype is what is being asked for
+    ftype = fname.split('.')[1]
+    if ftype != filetype:
+        filetype = ftype
+        print('Load filetype coerced in load_ccn function')
+    
+    
     if filetype in ['hdf','h5']:
         data = pd.read_hdf(fname, key='ccn')
     
@@ -347,7 +381,8 @@ def load_ccn(data_path = None, filetype = None, substring = None):
         data = None
     
     elif filetype == 'csv':
-        data = pd.read_csv(fname,skipinitialspace = True)  
+        data = pd.read_csv(fname,skipinitialspace = True)
+            
     
     return data
 
@@ -392,6 +427,8 @@ def Load_to_HDF(
     else:
         filelist = input_filelist
     filelist.sort()
+    
+    filelist = check_ccn_filelist(filelist)
     
     filelist_df = pd.DataFrame(filelist, columns=['filenames'])
     
@@ -473,9 +510,13 @@ def save_as(data,
     
     if filetype in ['hdf','h5']:
         fname = get_ccn_filenamebase('h5', filename_appendage, fname_current)
-                
+        if data is None:
+            print("CHECK HERE!")
         # Save data to file
-        data.to_hdf(fname, key='ccn')
+        try:
+            data.to_hdf(fname, key='ccn')
+        except:
+            print("NO! CHECK HERE!")
     
     elif filetype in ['netcdf','nc']:
         # Get the filename of the most recently created file
@@ -789,8 +830,12 @@ def load_basic_csv(filename = None, path = None, file_FULLPATH=None):
         assert filename is not None, msg
         assert path is not None, msg
                
-    
-        file_FULLPATH = path+filename
+        if os.path.isfile(path+filename):
+            file_FULLPATH = path+filename
+        elif os.path.isfile(filename):
+            file_FULLPATH = filename
+        else:
+            assert os.path.isfile(filename), filename + " could not be found"
     
     
     assert os.path.isfile(file_FULLPATH), \
@@ -823,6 +868,7 @@ def load_flow_cals(filename = None, path = None, file_FULLPATH=None):
     '''
     df = load_basic_csv(filename, path, file_FULLPATH)
     df = df.set_index(df.columns[0])
+    df = df.take([0], axis=1)
     df.columns = ['flow rate']
     return df
 
@@ -863,7 +909,7 @@ def get_unique_periods(filelist, frequency):
     ''' 
     Extract all unique values in the filelist (do this using set )    
     '''
-        
+    
     if frequency == 'monthly':
         months = set(get_month_label(filelist))  
         return list(months)
@@ -878,6 +924,14 @@ def get_unique_periods(filelist, frequency):
         print('Error in get_unique_periods!')
         return
 
+def check_ccn_filelist(filelist):
+    ''' 
+    checks that all the files in the filelist are of the correct format for 
+    ccn raw files
+    '''
+    filelist = [f for f in filelist if 'CCN 100 data' in f]
+    return filelist
+
 def get_ccn_filenamebase(ext, appendage, fname_current=None):
     '''
     Get's the filename of the most recently created file and produces the new
@@ -890,11 +944,21 @@ def get_ccn_filenamebase(ext, appendage, fname_current=None):
         return 'CCN_unknown' + appendage + '.' + ext
     else:
         if fname_current is not None:
-            # Get the most recent version of the current file
-            fname_current_base = fname_current.split('.')[0]
+            if '/' in fname_current:
+                fname_original = fname_current.split('/')[-1]
+                fname_current_base = fname_original.split('.')[0]
+            else:
+                # Get the most recent version of the current file
+                fname_current_base = fname_current.split('.')[0]
             fname_current_list = [f for f in filelist if fname_current_base in f]
-            fname_old = max(fname_current_list,key=os.path.getctime)
-            fname_old = fname_old.split('.')
+            if len(fname_current_list) > 0:
+                fname_old = max(fname_current_list,key=os.path.getctime)
+                fname_old = fname_old.split('.')
+            else:
+                try:
+                    fname_old = fname_original
+                except:
+                    print("get_ccn_filenamebase error!")
         else:
             # Get the filename of the most recently created file
             fname_old = max(filelist, key=os.path.getctime).split('.')
@@ -1074,7 +1138,10 @@ def ss_split(data, split_by_supersaturation = True):
                         uncert = uncert.dropna()
                         split_data[col] = uncert
                 
-                return split_data
+        try:
+            return split_data
+        except:
+            return data
     else:
         return data
 
@@ -1100,7 +1167,10 @@ def ss_transition_removal(data):
             data[(data.index >= timestamp0) & (data.index < timestamp1)] = np.nan
             
             # Start checking again from the end of the removed data
-            i = data.index.get_loc(timestamp1)+1
+            try:
+                i = data.index.get_loc(timestamp1)+1
+            except:
+                i = i+1
         else:
             i = i+1
         
@@ -1144,7 +1214,7 @@ def timebase_resampler(
                       data=0,
                       RawDataPath='',
                       input_h5_filename='',
-                      variable='CCN',
+                      variable='ccn',
                       time_int='default',
                       split_by_supersaturation = True
                       ):
@@ -1174,7 +1244,8 @@ def timebase_resampler(
                              '1H','3H','6H','12H','1D']
         time_int = list(compress(gui_time_options, time_int))
     
-    
+    if type(time_int) == str:
+        time_int = [time_int]
     # define MAD calculation
     mad = lambda x: np.fabs(x - x.median()).median() 
     
@@ -1187,7 +1258,7 @@ def timebase_resampler(
         for time in time_int:
             if time != '1S':
                 data_temp = data.resample(time,fill_method=None).apply(rmsn)
-                if 'cn_sigma' in data_temp:
+                if 'ccn_sigma' in data_temp:
                     data_resamp = pd.DataFrame(data_temp['ccn_sigma'])
                     data_resamp.columns = ['ccn_rmsn']
                 else:
@@ -1201,18 +1272,29 @@ def timebase_resampler(
                 for column in data.columns:
                     if column != 'ccn_sigma':    
                         sub_ccn = pd.DataFrame(data[column].copy())
-            
-                        data_resamp[column+'_med'] = \
-                            sub_ccn.resample(time,fill_method=None).median()
-                        data_resamp[column+'_mad'] = \
-                            sub_ccn.resample(time,fill_method=None).apply(mad)
-                        data_resamp[column+'_avg'] = \
-                            sub_ccn.resample(time,fill_method=None).mean()
-                        data_resamp[column+'_std'] = \
-                            sub_ccn.resample(time,fill_method=None).std()
-                        data_resamp[column+'_count'] = \
-                            sub_ccn.resample(time,fill_method=None).count()
-                        
+                        try:
+                            data_resamp[column+'_med'] = \
+                                sub_ccn.resample(time,
+                                                 fill_method=None).median()
+                            data_resamp[column+'_mad'] = \
+                                sub_ccn.resample(time,
+                                                 fill_method=None).apply(mad)
+                            data_resamp[column+'_avg'] = \
+                                sub_ccn.resample(time,
+                                                 fill_method=None).mean()
+                            data_resamp[column+'_std'] = \
+                                sub_ccn.resample(time,
+                                                 fill_method=None).std()
+                            data_resamp[column+'_count'] = \
+                                sub_ccn.resample(time,
+                                                 fill_method=None).count()
+                        except:
+                            # If the dataset contains only NaNs
+                            data_resamp[column+'_med'] = np.NaN
+                            data_resamp[column+'_mad'] = np.NaN
+                            data_resamp[column+'_avg'] = np.NaN
+                            data_resamp[column+'_std'] = np.NaN
+                            data_resamp[column+'_count'] = np.NaN
                 
                 # Calculate uncertainty:
                 data_resamp = uncertainty_calc_time_resample(
