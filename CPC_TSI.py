@@ -1087,7 +1087,12 @@ def load_basic_csv(filename = None, path = None, file_FULLPATH=None):
         assert path is not None, msg
                
     
-        file_FULLPATH = path+filename
+        if os.path.isfile(path+filename):
+            file_FULLPATH = path+filename
+        elif os.path.isfile(filename):
+            file_FULLPATH = filename
+        else:
+            assert os.path.isfile(filename), filename + " could not be found"
     
     
     assert os.path.isfile(file_FULLPATH), \
@@ -1120,5 +1125,6 @@ def load_flow_cals(filename = None, path = None, file_FULLPATH=None):
     '''
     df = load_basic_csv(filename, path, file_FULLPATH)
     df = df.set_index(df.columns[0])
+    df = df.take([0], axis=1)
     df.columns = ['flow rate']
     return df
