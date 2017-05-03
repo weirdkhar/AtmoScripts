@@ -310,7 +310,8 @@ def LoadAndProcess(ccn_raw_path = None,
         
         # Resample timebase and calculate uncertainties
         ccn_data = timebase_resampler(ccn_data,time_int=output_time_resolution,
-                          split_by_supersaturation = split_by_supersaturation)
+                          split_by_supersaturation = split_by_supersaturation,
+                          input_h5_filename = file)
     
     
     
@@ -897,10 +898,14 @@ def get_week_label(filelist):
     return week_label
     
 def get_day_label(filelist):
-    return [f[-12:-10] for f in filelist]
+    yearmonth = get_month_label(filelist)
+    day = [f[-12:-10] for f in filelist]
+    return [a + b for a, b in zip(yearmonth, day)]
     
 def get_month_label(filelist):
-    return [f[-14:-12] for f in filelist]
+    year = get_year_label(filelist)
+    month = [f[-14:-12] for f in filelist] 
+    return [a + b for a, b in zip(year, month)]
     
 def get_year_label(filelist):
     return [f[-16:-14] for f in filelist]

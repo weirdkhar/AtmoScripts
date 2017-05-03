@@ -695,7 +695,8 @@ def LoadAndProcess(cn_raw_path = None,
             
     
         # Resample timebase and calculate uncertainties
-        data = timebase_resampler(data,time_int=output_time_resolution)
+        data = timebase_resampler(data,time_int=output_time_resolution,
+                                  input_h5_filename = file)
     
     
     return data
