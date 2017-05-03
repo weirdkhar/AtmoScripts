@@ -1454,10 +1454,13 @@ def uncertainty_calc(data,
     
 def save_resampled_data(data, data_resamp,time_int,
                         variable = None, input_h5_filename = None):
-    if isinstance(data,pd.DataFrame):        
+    if input_h5_filename is not None:
+        s = input_h5_filename.split('.')
+        outputfilename = s[0]+'_'+time_int+'.h5'
+    elif isinstance(data,pd.DataFrame): 
         outputfilename = variable+'_'+time_int+'.h5'
     else:
-        outputfilename = input_h5_filename+'_'+ time_int +'.h5'
+        outputfilename = 'undefinedData_'+ time_int +'.h5'
     data_resamp.to_hdf(outputfilename, key=variable)
     
     return
