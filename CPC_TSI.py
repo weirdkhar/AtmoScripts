@@ -418,7 +418,14 @@ def flow_cal(data,
          used for calibration. See CAPRICORN.py for an example
      - set_flow_rate - the flow rate that the instrument SHOULD be at.
      - polydeg - the degree of the polynomial to fit to the measured data and 
-         correct with.
+         correct with. If polydeg is a string, the string will be input into the 
+         "type" option of scipy.interpolate.interp1d . Options include:
+             ‘linear’
+             ‘nearest’, 
+             ‘zero’ (zeroth order spline)
+             ‘slinear’ (first order spline)
+             ‘quadratic’ (second order spline) 
+             ‘cubic’ (third order spline)
     '''
     
     # Load data from file if required:
@@ -427,25 +434,44 @@ def flow_cal(data,
         # provided
         measured_flows_df = load_flow_cals(flow_cal_filename, flow_cal_path)
     
+    # Format index and sort it alphabetically
+    measured_flows_df['Timestamp'] = pd.to_datetime(measured_flows_df.index)
+    measured_flows_df = measured_flows_df.set_index('Timestamp')
+    measured_flows_df = measured_flows_df.sort_index()
     
     # Convert dates to seconds since 1 Jan 2000
-    x = (pd.to_datetime(measured_flows_df.index) - \
-         pd.to_datetime('2000-01-01 00:00:00')).total_seconds()
+    x = (measured_flows_df.index - measured_flows_df.index[0]).total_seconds()
     y = measured_flows_df['flow rate']
-    fit = np.polyfit(x,y,deg=polydeg, full=True)
-    p = np.poly1d(fit[0])
+    
+    
+    if type(polydeg) is str:
+        if polydeg in ['linear', 'nearest', 'zero', 
+                       'slinear', 'quadratic', 'cubic']:
+            from scipy.interpolate import interp1d
+            p = interp1d(x, y, kind=polydeg)
+            # Abs uncertainty is the RMS deviation of the regression
+            sigma_abs = 0
+        else:
+            print("Couldn't recognise polydeg string input, fitting second \
+                  degree polynomial. Please check input")
+            polydeg = 2
+    if type(polydeg) is not str:
+        fit = np.polyfit(x,y,deg=polydeg, full=True)
+        p = np.poly1d(fit[0])
+        # Abs uncertainty is the RMS deviation of the regression
+        try:
+            sigma_abs = fit[1][0]
+        except IndexError: 
+            # we get a perfect fit because we have < n calibration points
+            sigma_abs = 0
+
     x_data = (pd.to_datetime(data.index) - \
-              pd.to_datetime('2000-01-01 00:00:00')).total_seconds()
+              measured_flows_df.index[0]).total_seconds()
 
     data['Concentration'] = data['Concentration']/set_flow_rate*p(x_data)
    #plt.plot(x,y,'.',xp,p(xp),'--')
     
-    # Abs uncertainty is the RMS deviation of the regression
-    try:
-        sigma_abs = fit[1][0]
-    except IndexError: 
-        # we get a perfect fit because we have < n calibration points
-        sigma_abs = 0
+    
         
     # Rel uncertainty is abs divided by median of liniear regression
     sigma_divisor = p(x_data)
