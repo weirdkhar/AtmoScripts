@@ -1169,7 +1169,12 @@ def ss_split(data, split_by_supersaturation = True):
                         uncert = data[col]
                         uncert = uncert.dropna()
                         split_data[col] = uncert
-                
+            else:
+                # If the data only contains nan values after filtering
+                # return a dataframe with a single, indexed column full of NaN's
+                split_data = pd.DataFrame(np.nan,
+                                          index=data.index,
+                                          columns=['NaN_ONLY'])
         try:
             return split_data
         except:
@@ -1289,60 +1294,61 @@ def timebase_resampler(
         
         for time in time_int:
             if time != '1S':
-                data_temp = data.resample(time,fill_method=None).apply(rmsn)
-                if 'ccn_sigma' in data_temp:
-                    data_resamp = pd.DataFrame(data_temp['ccn_sigma'])
-                    data_resamp.columns = ['ccn_rmsn']
-                else:
-                    data_resamp = pd.DataFrame(data_temp.ix[:,0]) # create dataframe
-                    data_resamp['ccn_rmsn'] = 0 # if no processing has been done previously
-                    # Find name of data column to remove
-                    del_col = [col for col in data_resamp.columns if 'ccn_rmsn' not in col]
-                    for col in del_col:
-                        del data_resamp[col]
-                del data_temp
-                for column in data.columns:
-                    if column != 'ccn_sigma':    
-                        sub_ccn = pd.DataFrame(data[column].copy())
-                        try:
-                            data_resamp[column+'_med'] = \
-                                sub_ccn.resample(time,
-                                                 fill_method=None).median()
-                            data_resamp[column+'_mad'] = \
-                                sub_ccn.resample(time,
-                                                 fill_method=None).apply(mad)
-                            data_resamp[column+'_avg'] = \
-                                sub_ccn.resample(time,
-                                                 fill_method=None).mean()
-                            data_resamp[column+'_std'] = \
-                                sub_ccn.resample(time,
-                                                 fill_method=None).std()
-                            data_resamp[column+'_count'] = \
-                                sub_ccn.resample(time,
-                                                 fill_method=None).count()
-                        except:
-                            # If the dataset contains only NaNs
-                            data_resamp[column+'_med'] = np.NaN
-                            data_resamp[column+'_mad'] = np.NaN
-                            data_resamp[column+'_avg'] = np.NaN
-                            data_resamp[column+'_std'] = np.NaN
-                            data_resamp[column+'_count'] = np.NaN
-                
-                # Calculate uncertainty:
-                data_resamp = uncertainty_calc_time_resample(
-                                            data_resamp,
-                                            'mad',
-                                            'count',
-                                            col_name = 'med',
-                                            output_sigma_name = 'sigma'
-                                                        )
-                
-                # Reorder columns based on name:
-                data_resamp.sort_index(axis=1)
-                
-                # Save to file
-                save_resampled_data(data,data_resamp,time,
-                                    variable,input_h5_filename)
+                if 'NaN_ONLY' not in data.columns:
+                    data_temp = data.resample(time,fill_method=None).apply(rmsn)
+                    if 'ccn_sigma' in data_temp:
+                        data_resamp = pd.DataFrame(data_temp['ccn_sigma'])
+                        data_resamp.columns = ['ccn_rmsn']
+                    else:
+                        data_resamp = pd.DataFrame(data_temp.ix[:,0]) # create dataframe
+                        data_resamp['ccn_rmsn'] = 0 # if no processing has been done previously
+                        # Find name of data column to remove
+                        del_col = [col for col in data_resamp.columns if 'ccn_rmsn' not in col]
+                        for col in del_col:
+                            del data_resamp[col]
+                    del data_temp
+                    for column in data.columns:
+                        if column != 'ccn_sigma':    
+                            sub_ccn = pd.DataFrame(data[column].copy())
+                            try:
+                                data_resamp[column+'_med'] = \
+                                    sub_ccn.resample(time,
+                                                     fill_method=None).median()
+                                data_resamp[column+'_mad'] = \
+                                    sub_ccn.resample(time,
+                                                     fill_method=None).apply(mad)
+                                data_resamp[column+'_avg'] = \
+                                    sub_ccn.resample(time,
+                                                     fill_method=None).mean()
+                                data_resamp[column+'_std'] = \
+                                    sub_ccn.resample(time,
+                                                     fill_method=None).std()
+                                data_resamp[column+'_count'] = \
+                                    sub_ccn.resample(time,
+                                                     fill_method=None).count()
+                            except:
+                                # If the dataset contains only NaNs
+                                data_resamp[column+'_med'] = np.NaN
+                                data_resamp[column+'_mad'] = np.NaN
+                                data_resamp[column+'_avg'] = np.NaN
+                                data_resamp[column+'_std'] = np.NaN
+                                data_resamp[column+'_count'] = np.NaN
+                    
+                    # Calculate uncertainty:
+                    data_resamp = uncertainty_calc_time_resample(
+                                                data_resamp,
+                                                'mad',
+                                                'count',
+                                                col_name = 'med',
+                                                output_sigma_name = 'sigma'
+                                                            )
+                    
+                    # Reorder columns based on name:
+                    data_resamp.sort_index(axis=1)
+                    
+                    # Save to file
+                    save_resampled_data(data,data_resamp,time,
+                                        variable,input_h5_filename)
                 
     else:
         
@@ -1414,7 +1420,6 @@ def timebase_resampler(
                 save_resampled_data(data,data_resamp,time,
                                     variable,input_h5_filename)
     try:
-        
         return data_resamp
     except:
         return data
