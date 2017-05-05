@@ -112,9 +112,7 @@ def remove_previous_output(filetype, reload_from_source):
 def save_to_hdf(data, output_h5_filename, output_file_frequency):    
     import datetime
     ''' Determine the destination file for each datapoint in the dataframe'''
-    #year_str = [datetime.datetime.strftime(i, format = '%Y') for i in data.index]
     year_str = [str(i.isocalendar()[0]) for i in data.index]
-    #mnth_str = [datetime.datetime.strftime(i, format = '%m') for i in data.index]
     mnth_str = ['0' + str(i.month) \
                 if i.month <10 \
                 else str(i.month) \
@@ -219,18 +217,21 @@ def check_cpc_file_format(filename):
             except:
                 continue
        
-    # Make sure the header reflects the longest sample length in the file
-    content_reformatted[3] = max(header_list,key=len)
+   
     
     if len(content) == len(content_reformatted):
         return filename
     else:
+        # Make sure the header reflects the longest sample length in the file
+        content_reformatted[3] = max(header_list,key=len)
+        # Write new file
         filename_reformatted = filename.split('.')[0]+'_reformatted.'+filename.split('.')[1]
         if os.path.isfile(filename_reformatted):
             os.remove(filename_reformatted)
         with open(filename_reformatted,'wt') as fnew:
             fnew.write('\n'.join(line for line in content_reformatted))
         print('Input CPC file reformatted')
+        # Return new filename 
         return filename_reformatted
 
 def append_to_list(lst, line):
@@ -258,6 +259,13 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
         lastline = f.readlines()[-1]
     numsamples = lastline.split(",")[0]
     
+    # Read where the import has gotten up to previously:
+    with open('partial_files_loaded.txt','r') as f:
+        last_loaded = f.readlines()
+        last_loaded = [x.strip() for x in last_loaded]
+        last_loaded_file = last_loaded[0]
+        last_loaded_sample = int(last_loaded[1])
+    
     for chunk in df:
         # Extract initial timestamp for each sample (i.e. each row)
         try:
@@ -268,6 +276,8 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
         
         data = pd.DataFrame(columns = {'Timestamp', 'Concentration'})
         for rowidx in range(0,len(chunk)):
+            if (chunk['Sample #'][rowidx] < last_loaded_sample) and (read_filename == last_loaded_file):
+                continue
             # Create timestamp and extract concentration for each sample in chunk
             timestamp = [chunk['sample_timestamp'][rowidx] + pd.Timedelta(seconds=x) for x in range(0, chunk['Sample Length'][rowidx])]
             conc = chunk.iloc[rowidx,12:(12+chunk['Sample Length'][rowidx])]
@@ -280,24 +290,32 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
             # Append new data to current data
             data = pd.concat([data,data_temp])
       
-        # Drop duplicates that may be present
-        data = data.drop_duplicates(subset='Timestamp', keep='last')
-        # Set index
-        data = data.set_index('Timestamp')
-        # Coerce data to the correct type, dealing with infinite values output from AIM
-        data['Concentration'] = [np.nan if x == '1.#INF'  else float(x) for x in data['Concentration']]
-        
-        #Correct for Timezone offsets caused by AIM exporting process
-        if InputTZ-OutputTZ != 0 :
-            data = TimeZoneCorrection(data, CurrentTZ = InputTZ, OutputTZ = OutputTZ)
-        
-        # Save to hdf file
-        print('Saving chunk to file')
-        outputfilename = save_to_hdf(data, output_filename_base, output_file_frequency)
-
-        # Alert the user where the process is up to
-        print('Data loaded from ' + read_filename +' and samples ' + str(chunk['Sample #'].iloc[0]) 
-                    + ' to ' + str(chunk['Sample #'].iloc[-1]) + ' saved to ' + outputfilename)
+        if len(data) != 0:
+            # Drop duplicates that may be present
+            data = data.drop_duplicates(subset='Timestamp', keep='last')
+            # Set index
+            data = data.set_index('Timestamp')
+            # Coerce data to the correct type, dealing with infinite values output from AIM
+            data['Concentration'] = [np.nan if x == '1.#INF'  else float(x) for x in data['Concentration']]
+            
+            #Correct for Timezone offsets caused by AIM exporting process
+            if InputTZ-OutputTZ != 0 :
+                data = TimeZoneCorrection(data, CurrentTZ = InputTZ, OutputTZ = OutputTZ)
+            
+            # Save to hdf file
+            print('Saving chunk to file')
+            outputfilename = save_to_hdf(data, output_filename_base, output_file_frequency)
+    
+            # Alert the user where the process is up to
+            print('Data loaded from ' + read_filename +' and samples ' + str(chunk['Sample #'].iloc[0]) 
+                        + ' to ' + str(chunk['Sample #'].iloc[-1]) + ' saved to ' + outputfilename)
+    
+    if os.path.isfile('partial_files_loaded.txt'):
+        os.remove('partial_files_loaded.txt')
+    with open('partial_files_loaded.txt','wt') as f:
+        f.write(read_filename)
+        f.write('\n')
+        f.write(numsamples)
 
     return
     
