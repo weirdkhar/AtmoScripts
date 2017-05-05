@@ -186,7 +186,56 @@ def save_to_hdf(data, output_h5_filename, output_file_frequency):
     del data['destination_file']
     
     return file+'.h5'
+
+def check_cpc_file_format(filename):
+    '''
+    Reformat the CPC output that is produced by AIM auto-export. 
+    This involves removing header information which is reprinted after each 
+    sample
+    '''
+    # read the file
+    with open(filename) as f:
+        # Read the file
+        content = f.readlines()
+        content = [x.strip() for x in content]
     
+    # keep the first header so the read_cpc_csv function still works
+    first_header = True 
+    # Initialise new list
+    content_reformatted = []
+    header_list = []
+    # Iterate through each line, each for validity       
+    for line in content:
+        if first_header and (line.split(',')[0] in ['Sample File','Model','','Sample #']):
+            append_to_list(content_reformatted,line)
+            continue
+        elif line.split(',')[0] in ['Sample #']:
+            append_to_list(header_list,line)
+        else:
+            try:
+                int(line.split(',')[0])
+                append_to_list(content_reformatted,line)
+                first_header=False
+            except:
+                continue
+       
+    # Make sure the header reflects the longest sample length in the file
+    content_reformatted[3] = max(header_list,key=len)
+    
+    if len(content) == len(content_reformatted):
+        return filename
+    else:
+        filename_reformatted = filename.split('.')[0]+'_reformatted.'+filename.split('.')[1]
+        if os.path.isfile(filename_reformatted):
+            os.remove(filename_reformatted)
+        with open(filename_reformatted,'wt') as fnew:
+            fnew.write('\n'.join(line for line in content_reformatted))
+        print('Input CPC file reformatted')
+        return filename_reformatted
+
+def append_to_list(lst, line):
+    return lst.append(line)    
+
 def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, InputTZ=0, OutputTZ=0):
     '''
     Reads CPC data exports from AIM 10 and higher as row based, with 
@@ -199,7 +248,8 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
     else:
         print('Saving to ' + output_file_frequency + ' HDF file')
     
-        
+    # Check format of file:
+    read_filename = check_cpc_file_format(read_filename)
     # Read each row of data, taking into account that each row can change length and parsing format (weird...)
     df = pd.read_csv(read_filename, skiprows = range(0,3), engine='python', skipinitialspace=True, iterator = True, chunksize = 1000)
     
@@ -1091,10 +1141,13 @@ def uncertainty_calc(data,
 
 def save_resampled_data(data, data_resamp,time_int,
                         variable = None, input_h5_filename = None):
-    if isinstance(data,pd.DataFrame):        
+    if input_h5_filename is not None:
+        s = input_h5_filename.split('.')
+        outputfilename = s[0]+'_'+time_int+'.h5'
+    elif isinstance(data,pd.DataFrame): 
         outputfilename = variable+'_'+time_int+'.h5'
     else:
-        outputfilename = input_h5_filename+'_'+ time_int +'.h5'
+        outputfilename = 'undefinedData_'+ time_int +'.h5'
     data_resamp.to_hdf(outputfilename, key=variable)
     
     return
