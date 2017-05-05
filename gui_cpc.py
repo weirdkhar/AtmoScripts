@@ -628,7 +628,7 @@ than the measurement computer's time zone settings."
         self.w_finished.title("All finished")
         self.w_finished.geometry("300x200")
         txt = tk.Message(self.w_finished,
-                         text = "Processing completed!",
+                         text = "Processing of CPC data complete!",
                          justify=tk.CENTER,
                          width=300)
         txt.pack()
