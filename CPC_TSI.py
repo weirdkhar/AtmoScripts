@@ -49,9 +49,17 @@ def Load_to_HDF(input_path= None,
                 files_already_loaded = pickle.load(f)
             # Get only the new files to be loaded:
             filelist=list(set(filelist).difference(set(files_already_loaded)))
+        # Read where the import has gotten up to previously:
+            if os.path.isfile('partial_files_loaded.txt'):
+                with open('partial_files_loaded.txt','r') as f:
+                    last_loaded = f.readlines()
+                    last_loaded = [x.strip() for x in last_loaded]
+                    last_loaded_file = last_loaded[0]
+                if type(last_loaded_file) is str:
+                    filelist.append(last_loaded_file)
     else:
         filelist = input_filelist
-    filelist.sort()       
+    filelist.sort()     
 
     #Iterate through to load the raw files 
     for file in filelist:
@@ -216,8 +224,10 @@ def check_cpc_file_format(filename):
                 first_header=False
             except:
                 continue
-       
-   
+      
+    
+    if 'Sample File' not in content[0]:
+        return None
     
     if len(content) == len(content_reformatted):
         return filename
@@ -251,6 +261,8 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
     
     # Check format of file:
     read_filename = check_cpc_file_format(read_filename)
+    if read_filename is None:
+        return
     # Read each row of data, taking into account that each row can change length and parsing format (weird...)
     df = pd.read_csv(read_filename, skiprows = range(0,3), engine='python', skipinitialspace=True, iterator = True, chunksize = 1000)
     
@@ -276,7 +288,7 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
         
         data = pd.DataFrame(columns = {'Timestamp', 'Concentration'})
         for rowidx in range(0,len(chunk)):
-            if (chunk['Sample #'][rowidx] < last_loaded_sample) and (read_filename == last_loaded_file):
+            if (chunk['Sample #'][rowidx] <= last_loaded_sample) and (read_filename == last_loaded_file):
                 continue
             # Create timestamp and extract concentration for each sample in chunk
             timestamp = [chunk['sample_timestamp'][rowidx] + pd.Timedelta(seconds=x) for x in range(0, chunk['Sample Length'][rowidx])]
@@ -316,7 +328,10 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
         f.write(read_filename)
         f.write('\n')
         f.write(numsamples)
-
+    
+    # Make sure the file is closed
+    f = open(read_filename,'r')
+    f.close()
     return
     
 def read_cpc_csv_row_AIM9(read_filename, output_filename_base, output_file_frequency, InputTZ=0, OutputTZ=0):
