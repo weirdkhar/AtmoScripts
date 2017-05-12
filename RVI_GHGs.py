@@ -10,13 +10,7 @@ import pandas as pd
 import os
 import shutil 
 import glob
-import matplotlib.pyplot as plt
-import numpy as np
 
-
-
-startdate = '2016-04-25'
-enddate = '2016-06-30'
 
 source_drive_pic = 'j'
 local_path_pic = 'r:\\RV_Investigator\\GHGs\\Picarro\\'
@@ -25,52 +19,6 @@ source_drive_aer = 'k'
 local_path_aer = 'r:\\RV_Investigator\\GHGs\\Aerodyne\\'
 
 
-
-def main():
-    #transfer_aerodyne_co_n2o_raw()
-    #df = read_aerodyne_data(local_path_aer,startdate,enddate)
-    #os.chdir(local_path_aer)
-    #df.to_hdf('concat_aerodyne.h5',key='ghg')
-    
-    #transfer_picarro_co2_ch4_raw()
-    #df = read_picarro_data(local_path_pic,startdate,enddate)
-    #os.chdir(pic_local_path)
-    #df.to_hdf('concat_picarro.h5',key='ghg')
-    
-    os.chdir(local_path_pic)
-    dfp = pd.read_hdf('concat_picarro.h5',key='ghg')
-    dfp0 = dfp['2016-05-06 00:06:50':'2016-05-06 06:00:00'].copy()
-    dfp = resample_interpolation(dfp0)
-    
-    os.chdir(local_path_aer)
-    dfa = pd.read_hdf('concat_aerodyne.h5',key='ghg')
-    dfa0 = dfa['2016-05-06 00:06:50':'2016-05-06 06:00:00'].copy()
-    dfa = resample_interpolation(dfa0)
-    
-    df = dfa.join(dfp,how='outer')
-    
-    plot_me(df)
-    return
-
-
-
-def plot_me(df):
-    
-    
-    df = exhaust_flag_co2(df)
-    
-    df['CO2_filt'] = df['CO2_dry']
-    df['CO2_filt'].loc[df['exhaust_filt']] = np.nan
- 
-    
-    plt.plot(df['CO2_dry'],'.',
-             df['CO2_filt'],'x', 
-             df['CO2_dry_std']+395,'.',
-             df['CO2_dry_stdminute']+395,'.',
-             df['CO']+350,'o')
-    plt.show()
-    
-    return
 
 #==============================================================================
 #  Useful aligning functions
@@ -90,8 +38,30 @@ def resample_interpolation(df):
 #  Create exhaust flags
 #==============================================================================
 def exhaust_flag_co(df):
+    df['CO_std'] = df['CO'].rolling(window=9,
+                                    center=True).std()
+    df['CO_stdminute'] = df['CO'].rolling(window=181,
+                                            center=True).std()
     
-    return
+    # Filter for min std over threshold
+    exhaust_rows0 = df['CO_stdminute'] > 0.17
+    # Filter for sec std over threshold
+    #exhaust_rows0.loc[(df['CO_std'] > 0.26)] = True
+    
+    # Filter data around identified periods
+    exhaust_rows = exhaust_rows0.rolling(window=300,
+                                         center=True).apply(exhaust_window)
+    exhaust_rows.fillna(True,inplace=True)
+    exhaust_rows = exhaust_rows.astype(bool)
+    
+    if 'exhaust_filt' not in df:
+        # Initialise
+        df['exhaust_filt'] = False
+    
+    df.loc[exhaust_rows,'exhaust_filt'] = True
+
+    return df
+    
 
 def exhaust_flag_co2(df):
     df['CO2_dry_std'] = df['CO2_dry'].rolling(window=9,
@@ -110,9 +80,10 @@ def exhaust_flag_co2(df):
     exhaust_rows.fillna(True,inplace=True)
     exhaust_rows = exhaust_rows.astype(bool)
     
-    # Initialise
+    if 'exhaust_filt' not in df:
+        # Initialise
+        df['exhaust_filt'] = False
     
-    df['exhaust_filt'] = False
     df.loc[exhaust_rows,'exhaust_filt'] = True
 
     return df
@@ -358,5 +329,3 @@ def transfer_aerodyne_co_n2o_raw(driveletter='k',
                    print('Copying ' + src + ' to ' + dst)
                 
     return
-
-main()
