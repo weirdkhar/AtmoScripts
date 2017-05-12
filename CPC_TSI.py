@@ -82,14 +82,21 @@ def Load_to_HDF(input_path= None,
     
     return 
 
-def load_cn(data_path, filetype):
+def load_cn(data_path=None, filetype=None, fname=None):
     ''' 
     Loads data from concatenated data file.
     '''
-    os.chdir(data_path)
-    # Get most recently updated file:
-    filelist = glob.glob('*.'+filetype)
-    fname = min(filelist, key=os.path.getctime)
+    if fname is None:
+        assert data_path is not None, 'specify data path!'
+        assert filetype is not None, 'specify filetype!'
+    
+        os.chdir(data_path)
+        # Get most recently updated file:
+        filelist = glob.glob('*.'+filetype)
+        fname = min(filelist, key=os.path.getctime)
+    else:
+        filetype = fname.split('.')[-1]
+        
     if filetype in ['hdf','h5']:
         data = pd.read_hdf(fname, key='cn')
     
@@ -718,7 +725,7 @@ def LoadAndProcess(cn_raw_path = None,
     if cn_output_path is None:
         cn_output_path = cn_raw_path
 
-    if load_from_filetype == "csv":
+    if load_from_filetype == "csv" and force_reload_from_source:
         load_data_to_file(
                           cn_raw_path = cn_raw_path, 
                           cn_output_path = cn_output_path,
@@ -735,10 +742,11 @@ def LoadAndProcess(cn_raw_path = None,
 
     for file in raw_filelist:    
         # Load data
-        if load_from_filetype == "csv":
-            data = load_cn(cn_output_path,cn_output_filetype)
-        else:
-            data = load_cn(cn_raw_path, load_from_filetype)
+        data = load_cn(fname = file)
+#        if load_from_filetype == "csv":
+#            data = load_cn(cn_output_path,cn_output_filetype)
+#        else:
+#            data = load_cn(cn_raw_path, load_from_filetype)
         
         plot_me(data, plot_each_step,'Concentration','raw')
         
