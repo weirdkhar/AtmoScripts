@@ -196,6 +196,7 @@ def LoadAndProcess(ccn_raw_path = None,
     remove these periods
     If requested, it will perform exhaust removal (assuming its on the RVI)
     '''
+    
     if ccn_output_path is None:
         ccn_output_path = ccn_raw_path
     
@@ -547,6 +548,8 @@ def save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase = None):
         
         # Get only the new files to be loaded:
         filelist = list(set(filelist).difference(set(files_already_loaded)))
+        if len(filelist) == 0:
+            return
         
         data_new, fname_current = read_ccn_csv(filelist)
       
@@ -1345,10 +1348,12 @@ def timebase_resampler(
                     
                     # Reorder columns based on name:
                     data_resamp.sort_index(axis=1)
-                    
-                    # Save to file
-                    save_resampled_data(data,data_resamp,time,
-                                        variable,input_h5_filename)
+                else:
+                    data_resamp = data.resample(time).mean()
+                
+                # Save to file
+                save_resampled_data(data,data_resamp,time,
+                                    variable,input_h5_filename)
                 
     else:
         
@@ -1470,6 +1475,9 @@ def uncertainty_calc(data,
     '''
     Calculates and propogates uncertainty for each calibration process
     '''
+    # Remove 0 divisors
+    sigma_divisor = pd.Series([np.nan if i==0 else i for i in sigma_divisor ])
+        
     if 'ccn_sigma' in data.columns:
         data[output_sigma_name] = data[col_name] * \
                             (
