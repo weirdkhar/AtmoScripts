@@ -420,10 +420,17 @@ def plot(x_data = None,
          ):
     ''' Function that plots each subplot '''
     y_data = pd.DataFrame(y_data)    
-    if legend == '':
+    
+    if legend !=  '':
+        drawLegend = True
+    if (y_data_R is not None):    #If there is a second axis to plot, use a legend
+        drawLegend = True
+        
+    if (legend == '') and drawLegend:
         legend = y_data.columns.values.tolist()
-    if legend_R == '':
+    if (legend_R == '') and drawLegend:
         legend_R = ylabel_R
+    
     
     if z_data is not None:
         figsize0 = (figsize[0]*1.05,figsize[1])
@@ -451,10 +458,13 @@ def plot(x_data = None,
     if logscale:
          a1 = axes_object.semilogy(x_data,y_data,markerstyle, label=legend,markeredgecolor='none')
     else:
-        if z_data is None: 
+#        if z_data is None: 
+        if y_data.shape[1]>1:
             a1 = axes_object.plot(x_data,y_data,markerstyle,label=legend,markeredgecolor='none')
-        else: #only plotting 1 dataset, but with z data optional. Need to use this to add a colorbar
-            a1 = axes_object.scatter(x_data, y_data, c=z_data, cmap = colormap, marker = markerstyle, edgecolors='none', label=legend)
+#        else: #only plotting 1 dataset, but with z data optional. Need to use this to add a colorbar
+        #a1 = axes_object.scatter(x_data, y_data, c=z_data, cmap = colormap, marker = markerstyle, edgecolors='none', label=legend)
+        else:
+            a1 = axes_object.scatter(x_data, y_data, c=z_data, marker = markerstyle, edgecolors='none', label=legend)
 #         a1 = axes_object.plot(x_data, y_data, c=z_data, color = colormap, marker = markerstyle, markeredgecolor='none', label=legend)
          
          
@@ -479,12 +489,7 @@ def plot(x_data = None,
     
         plt.colorbar(a1, cax = cax, label=colorbar_label, orientation = colorbar_orientation)
 
-    if legend !=  '':
-        drawLegend = True
-        
     
-    if y_data_R is not None:    #If there is a second axis to plot, use a legend
-        drawLegend = True
     
     if title != "":
         axes_object.set_title(title)
@@ -494,18 +499,19 @@ def plot(x_data = None,
     axes_object.set_ylabel(ylabel, fontsize=14)
     axes_object.set_xlabel(xlabel, fontsize=14)
 
-    if ylim is not None:
-        axes_object.set_ylim(ylim)
     
-    if xlim is not None:
-        axes_object.set_xlim(xlim)
+    
+    
     
     if y_data_R is not None:
         ax = axes_object.twinx()
-        from cycler import cycler
-        # Change colour cycle for second axes        
-        ax.set_prop_cycle(cycler('color', ['c', 'm', 'y', 'k']) +
-                   cycler('lw', [1, 2, 3, 4]))
+        # Change colour cycle for second axes
+        #from cycler import cycler
+        #ax.set_prop_cycle(cycler('color', ['c', 'm', 'y', 'k']) +
+        #           cycler('lw', [1, 2, 3, 4]))
+        for advance in range(y_data.shape[1]):
+            next(ax._get_lines.prop_cycler)
+        
         # Change any series data to dataframe so that iteration will work 
         y_data_R = pd.DataFrame(y_data_R)
         for i in range(len(y_data_R.columns)):
@@ -520,19 +526,33 @@ def plot(x_data = None,
         if ylim_R is not None:
             ax.set_ylim(ylim_R)
         
-        if xlim is not None:
-            ax.set_xlim(xlim)
+        if xlim is None:
+            xlim = [x_data.min(),x_data.max()]
+        ax.set_xlim(xlim)
         
         if drawLegend:
             # Create combined legend
-            a1s = a1+a2
-            labs = [l.get_label() for l in a1s]
+            l1 = a1.get_label()
+            l2 = a2.get_label()
+            labs = [l1,l2]
+            a1s = [a1,a2]
+            #labs = [l.get_label() for l in a1s]
             ax.legend(a1s, labs, loc=legendLocation, numpoints = 1)
     else:
         if drawLegend:
             axes_object.legend(legend, loc=legendLocation, numpoints = 1)
     
+    
     # Make the axes pretty and show
+    if ylim is not None:
+        axes_object.set_ylim(ylim)
+        
+    if xlim is None:
+        xlim = [x_data.min(),x_data.max()]
+    axes_object.set_xlim(xlim)
+    
+    
+    
     ticks = axes_object.get_xticks()
     
     # if we're plotting time on the x axis, Set the x-tick format to change depending on the span being plotted
