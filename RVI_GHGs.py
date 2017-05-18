@@ -10,6 +10,8 @@ import pandas as pd
 import os
 import shutil 
 import glob
+import sys
+sys.path.append('h:\\code\\atmoscripts\\')
 
 
 source_drive_pic = 'j'
@@ -37,80 +39,58 @@ def resample_interpolation(df):
 #==============================================================================
 #  Create exhaust flags
 #==============================================================================
-def exhaust_flag_co(df):
-    df['CO_std'] = df['CO'].rolling(window=9,
-                                    center=True).std()
-    df['CO_stdminute'] = df['CO'].rolling(window=181,
-                                            center=True).std()
-    
-    # Filter for min std over threshold
-    exhaust_rows0 = df['CO_stdminute'] > 0.17
-    # Filter for sec std over threshold
-    #exhaust_rows0.loc[(df['CO_std'] > 0.26)] = True
-    
-    # Filter data around identified periods
-    exhaust_rows = exhaust_rows0.rolling(window=300,
-                                         center=True).apply(exhaust_window)
-    exhaust_rows.fillna(True,inplace=True)
-    exhaust_rows = exhaust_rows.astype(bool)
-    
-    if 'exhaust_filt' not in df:
-        # Initialise
-        df['exhaust_filt'] = False
-    
-    df.loc[exhaust_rows,'exhaust_filt'] = True
-
-    return df
-    
-
-def exhaust_flag_co2(df):
-    df['CO2_dry_std'] = df['CO2_dry'].rolling(window=9,
-                                              center=True).std()
-    df['CO2_dry_stdminute'] = df['CO2_dry'].rolling(window=181,
-                                                    center=True).std()
-    
-    # Filter for min std over threshold
-    exhaust_rows0 = df['CO2_dry_stdminute'] > 0.03
-    # Filter for sec std over threshold
-    exhaust_rows0.loc[(df['CO2_dry_std'] > 0.05)] = True
-    
-    # Filter data around identified periods
-    exhaust_rows = exhaust_rows0.rolling(window=300,
-                                         center=True).apply(exhaust_window)
-    exhaust_rows.fillna(True,inplace=True)
-    exhaust_rows = exhaust_rows.astype(bool)
-    
-    if 'exhaust_filt' not in df:
-        # Initialise
-        df['exhaust_filt'] = False
-    
-    df.loc[exhaust_rows,'exhaust_filt'] = True
-
-    return df
-
-def exhaust_window(x):
-    '''
-    if any value within the passed window satisfies the value, then return true
-    
-    This is used as a moving window to remove data either side of a filter 
-    event
-    '''
-    if any(x):
-        return True
-    else:
-        return False
-    
+#def exhaust_flag_co(df):
+#    df['CO_std'] = df['CO'].rolling(window=9,
+#                                    center=True).std()
+#    df['CO_stdminute'] = df['CO'].rolling(window=181,
+#                                            center=True).std()
+#    
+#    # Filter for min std over threshold
+#    exhaust_rows0 = df['CO_stdminute'] > 0.17
+#    # Filter for sec std over threshold
+#    #exhaust_rows0.loc[(df['CO_std'] > 0.26)] = True
+#    
+#    # Filter data around identified periods
+#    exhaust_rows = exhaust_rows0.rolling(window=300,
+#                                         center=True).apply(exhaust.exhaust_window)
+#    exhaust_rows.fillna(True,inplace=True)
+#    exhaust_rows = exhaust_rows.astype(bool)
+#    
+#    if 'exhaust' not in df:
+#        # Initialise
+#        df['exhaust'] = False
+#    
+#    df.loc[exhaust_rows,'exhaust'] = True
+#
+#    return df
+#    
+#
+#def exhaust_flag_co2(df):
+#    df['CO2_dry_std'] = df['CO2_dry'].rolling(window=9,
+#                                              center=True).std()
+#    df['CO2_dry_stdminute'] = df['CO2_dry'].rolling(window=181,
+#                                                    center=True).std()
+#    
+#    # Filter for min std over threshold
+#    exhaust_rows0 = df['CO2_dry_stdminute'] > 0.03
+#    # Filter for sec std over threshold
+#    exhaust_rows0.loc[(df['CO2_dry_std'] > 0.05)] = True
+#    
+#    # Filter data around identified periods
+#    exhaust_rows = exhaust_rows0.rolling(window=300,
+#                                         center=True).apply(exhaust.exhaust_window)
+#    exhaust_rows.fillna(True,inplace=True)
+#    exhaust_rows = exhaust_rows.astype(bool)
+#    
+#    if 'exhaust' not in df:
+#        # Initialise
+#        df['exhaust'] = False
+#    
+#    df.loc[exhaust_rows,'exhaust'] = True
+#    
+#    return df
 
 
-
-def exhaust_flag_OutlierIteration(df, column):
-    '''
-    Takes the chosen column and fits harmonics, polynomials, and performs 
-    fourier transforms to enable outlier identification.
-    
-    Iterates through this process multiple times.
-    '''
-    return
 
 #==============================================================================
 #  Read data
