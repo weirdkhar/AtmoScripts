@@ -9,6 +9,8 @@ sys.path.append('h:\\code\\atmoscripts\\')
 import os
 import RVI_GHGs as ghg
 import RVI_Underway
+import rvi_exhaust_filter as exh
+import glob
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,15 +23,17 @@ local_path_ccn = 's:\\in2016_v03\\ccnc\\'
 
 master_path = 'h:\\code\\AtmoScripts\\'
 
+exhaust_path = 'r:\\RV_Investigator\\'
 
 
+old = False
 
 os.chdir(master_path)
 if os.path.isfile('exhaust_filter_test_data.h5') & False:
     os.remove('exhaust_filter_test_data.h5')
 #startdate = '2016-05-06 04:06:50'
-startdate = '2016-05-16 00:00:00'
-enddate = '2016-05-19 00:00:00'
+startdate = '2016-05-28 00:00:00'
+enddate = '2016-06-04 00:00:00'
 
 #startdate = '2016-05-17 03:00:00'
 #enddate = '2016-05-17 12:00:00'
@@ -43,7 +47,54 @@ Determined:
     
 
 '''
-def main():
+
+
+
+
+
+def main(force_reload_exhaust = False,
+         abridged_exhaust = False,
+         co_id = True,
+         cn_id = True,
+         bc_id = True,
+         
+         filter_window = 60*10,
+         
+         co_stat_window = 10,
+         co_stat_threshold = 0.245,
+         
+         cn_stat_window = 10,
+         cn_stat_threshold = 50, #70
+         
+         bc_lim = 0.07001):
+    
+    df = load()
+    
+    dfe = exh.create_exhaust_id(exhaust_path = exhaust_path,
+                                startdate = startdate,
+                                enddate = enddate,
+                                force_reload=force_reload_exhaust,
+                                abridged = abridged_exhaust,
+                                co_id = co_id,
+                                cn_id = cn_id,
+                                bc_id = bc_id,
+                                filter_window = filter_window,
+                                co_stat_window = co_stat_window,
+                                co_stat_threshold = co_stat_threshold,                        
+                                cn_stat_window = cn_stat_window,
+                                cn_stat_threshold = cn_stat_threshold,                        
+                                bc_lim = bc_lim
+                                )
+    for col in dfe.columns:
+        if col in df.columns:
+            df = df.drop(col,axis=1)
+    d = df.join(dfe,how='outer')
+    
+    plt.plot(d['cn_std'],'.',d['cn'],'x')
+    plt.show()
+    return d, df, dfe
+
+def main_old():
     df = load()
     #fwind = 150
     fwind = 60*10
@@ -91,6 +142,8 @@ def main():
     df5 = rolling_outlier(df, df1, df2, df3, df4, 'ccn')
     plot_com4_filters(df,df1,df2,df3,df4,df5,'ccn')
     '''
+    plt.plot(df4['cn_std'],'.',df4['cn10'],'x')
+    plt.show()
     plot_com3_filters(df,df1,df2,df3,df4,'cn10')
     plot_com3_filters(df,df1,df2,df3,df4,'CO')
     plot_com3_filters(df,df1,df2,df3,df4,'ccn')
@@ -102,6 +155,24 @@ def main():
     plot_combination_filters(df, df1, df2, df3, df4,'CO')
     
     return
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def rolling_outlier(df, df1, df2, df3, df4, col='cn10'):
     df_co_cn_bc = df.copy()
@@ -477,10 +548,12 @@ def load():
     os.chdir(master_path)
     if os.path.isfile('exhaust_filter_test_data.h5'):
         df = pd.read_hdf('exhaust_filter_test_data.h5', key='data')
+        print('Data loaded from ' + 'exhaust_filter_test_data.h5')
     else:
         #======================================================================
         # Load GHG data
         #======================================================================
+        print('Loading GHG data')
         os.chdir(local_path_pic)
         dfp = pd.read_hdf('concat_picarro.h5',key='ghg')
         dfp = dfp[startdate:enddate].copy()
@@ -494,42 +567,66 @@ def load():
         #======================================================================
         # Load cn data
         #======================================================================
+        print('Loading CN data')
         os.chdir(local_path_cn)
-        dfc = pd.read_hdf('CN3_raw_2016_wk20_flowCal_logFilt.h5',key='cn')
+        secfiles = glob.glob('*logFilt.h5')
+        dfc = []
+        for file in secfiles:
+            cn_temp = pd.read_hdf(file, key='cn')
+            dfc.append(cn_temp)
+        # Concatenate each df in the dictionary
+        dfc = pd.concat(dfc)
+        dfc.sort_index()
+        #dfc = pd.read_hdf('CN3_raw_2016_wk20_flowCal_logFilt.h5',key='cn')
         dfc = dfc[startdate:enddate].copy()
         dfc.rename(columns={'Concentration':'cn10'},inplace=True)
         
         #======================================================================
         # Load ccn data
         #======================================================================
+        print('Loading CCN data')
         os.chdir(local_path_ccn)
-        dfcc = pd.read_hdf('CCN_raw_2016_wk20_QC_flowCal_ssCal_logFilt_ssSplit.h5',key='ccn')
+        secfiles = glob.glob('*ssSplit.h5')
+        dfcc = []
+        for file in secfiles:
+            ccn_temp = pd.read_hdf(file, key='ccn')
+            dfcc.append(ccn_temp)
+        # Concatenate each df in the dictionary
+        dfcc = pd.concat(dfcc)
+        dfcc.sort_index()
+        #dfcc = pd.read_hdf('CCN_raw_2016_wk20_QC_flowCal_ssCal_logFilt_ssSplit.h5',key='ccn')
         dfcc = dfcc[startdate:enddate].copy()
         dfcc.rename(columns={'ccn_0.5504':'ccn'},inplace=True)
         
         #======================================================================
         # Load uwy data
         #======================================================================
+        print('Loading UWY data')
         os.chdir(local_path_uwy)
         dfu = pd.read_hdf('uwy_filt.h5',key='uwy')
         dfu = dfu[startdate:enddate].copy()
-        
         #======================================================================
         # Merge datasets
         #======================================================================
+        print('Merging data')
         df = dfa.join(dfp,how='outer')
         df = df.join(dfc,how='outer')
         df = df.join(dfcc,how='outer')
         df = df.join(dfu,how='outer')
-        
         # Interpolate missing uwy data caused by merging 1s and 5s data
-        for col in dfu.columns:
-            df[col] = df[col].interpolate(limit=4)
+#        for col in dfu.columns:
+#            df[col] = df[col].interpolate(limit=4)
+#            print('Interpolated ' + col)
+        
         #======================================================================
         # Save data for quick reuse
         #======================================================================
         os.chdir(master_path)
+        print('Saving data to file for quick reuse')
         df.to_hdf('exhaust_filter_test_data.h5',key='data')
+        
     return df
 
-main()
+# if this script is run at the command line, run the main script   
+if __name__ == '__main__': 
+	main()
