@@ -116,9 +116,11 @@ def read_aerodyne_data(local_path_aer= 'r:\\RV_Investigator\\GHGs\\Aerodyne\\',
     
     df = []
     for yr in years:
-        try:
+        if os.path.isdir(local_path_aer+str(yr)):
             os.chdir(local_path_aer+str(yr))
-        except:
+        elif os.path.isdir(local_path_aer):
+            os.chdir(local_path_aer)
+        else:
             continue
         filelist = glob.glob('*.str')
         filelist.sort()
