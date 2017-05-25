@@ -279,11 +279,15 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
     numsamples = lastline.split(",")[0]
     
     # Read where the import has gotten up to previously:
-    with open('partial_files_loaded.txt','r') as f:
-        last_loaded = f.readlines()
-        last_loaded = [x.strip() for x in last_loaded]
-        last_loaded_file = last_loaded[0]
-        last_loaded_sample = int(last_loaded[1])
+    if os.path.isfile('partial_files_loaded.txt'):
+        with open('partial_files_loaded.txt','r') as f:
+            last_loaded = f.readlines()
+            last_loaded = [x.strip() for x in last_loaded]
+            last_loaded_file = last_loaded[0]
+            last_loaded_sample = int(last_loaded[1])
+            files_previously_loaded = True
+    else:
+        files_previously_loaded = False
     
     for chunk in df:
         # Extract initial timestamp for each sample (i.e. each row)
@@ -295,8 +299,9 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
         
         data = pd.DataFrame(columns = {'Timestamp', 'Concentration'})
         for rowidx in range(0,len(chunk)):
-            if (chunk['Sample #'][rowidx] <= last_loaded_sample) and (read_filename == last_loaded_file):
-                continue
+            if files_previously_loaded:
+                if (chunk['Sample #'][rowidx] <= last_loaded_sample) and (read_filename == last_loaded_file):
+                    continue
             # Create timestamp and extract concentration for each sample in chunk
             timestamp = [chunk['sample_timestamp'][rowidx] + pd.Timedelta(seconds=x) for x in range(0, chunk['Sample Length'][rowidx])]
             conc = chunk.iloc[rowidx,12:(12+chunk['Sample Length'][rowidx])]
