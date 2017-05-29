@@ -881,7 +881,8 @@ def get_week_label(filelist):
     '''
     Extract the week number of each dates in the filelist
     '''
-    dates = [f[-16:-10] for f in filelist]
+    dates = [f[13:19] if '_' in f[-16:-10] else f[-16:-10] for f in filelist]
+    
     weeknum = [str(datetime.date(
                         2000+int(day[0:2]),
                         int(day[2:4]),
