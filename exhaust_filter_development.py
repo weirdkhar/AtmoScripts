@@ -15,6 +15,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import atmosplots as aplt
+import functools
+from scipy import signal
+
 local_path_cn = 's:\\in2016_v03\\cpc\\'
 local_path_uwy = 's:\\in2016_v03\\uwy\\'
 local_path_pic = 'r:\\RV_Investigator\\GHGs\\Picarro\\'
@@ -29,12 +32,12 @@ exhaust_path = 'r:\\RV_Investigator\\'
 old = False
 
 os.chdir(master_path)
-if os.path.isfile('exhaust_filter_test_data.h5') & False:
+if os.path.isfile('exhaust_filter_test_data.h5') & True:
     os.remove('exhaust_filter_test_data.h5')
-#startdate = '2016-05-06 04:06:50'
-startdate = '2016-05-28 00:00:00'
-enddate = '2016-06-04 00:00:00'
 
+startdate = '2016-05-29 00:00:00'
+enddate = '2016-05-30 16:00:00'
+    
 #startdate = '2016-05-17 03:00:00'
 #enddate = '2016-05-17 12:00:00'
 
@@ -47,12 +50,11 @@ Determined:
     
 
 '''
+    
 
-
-
-
-
+    
 def main(force_reload_exhaust = False,
+         force_recalculate_exhaust = True,
          abridged_exhaust = False,
          co_id = True,
          cn_id = True,
@@ -60,29 +62,35 @@ def main(force_reload_exhaust = False,
          
          filter_window = 60*10,
          
-         co_stat_window = 10,
-         co_stat_threshold = 0.245,
+         co_stat_window = 60*10,
+         co_num_devs = 4,
+#         co_stat_threshold = 0.245,
          
-         cn_stat_window = 10,
-         cn_stat_threshold = 50, #70
+         cn_stat_window = 60*10,
+         cn_num_devs = 4,
+#         cn_stat_threshold = 70, #50
          
          bc_lim = 0.07001):
     
+#    deviation_dev()
+    
     df = load()
     
-    dfe = exh.create_exhaust_id(exhaust_path = exhaust_path,
+    dfe = exh.create_exhaust_id(df,
+                                exhaust_path = exhaust_path,
                                 startdate = startdate,
                                 enddate = enddate,
                                 force_reload=force_reload_exhaust,
+                                force_recalculate = force_recalculate_exhaust,
                                 abridged = abridged_exhaust,
                                 co_id = co_id,
                                 cn_id = cn_id,
                                 bc_id = bc_id,
                                 filter_window = filter_window,
                                 co_stat_window = co_stat_window,
-                                co_stat_threshold = co_stat_threshold,                        
+                                co_num_devs = co_num_devs, 
                                 cn_stat_window = cn_stat_window,
-                                cn_stat_threshold = cn_stat_threshold,                        
+                                cn_num_devs = cn_num_devs,                        
                                 bc_lim = bc_lim
                                 )
     for col in dfe.columns:
@@ -90,10 +98,138 @@ def main(force_reload_exhaust = False,
             df = df.drop(col,axis=1)
     d = df.join(dfe,how='outer')
     
+    cn = d['cn10']
+    ex = d['exhaust']
+    ex.loc[ex.isnull()] = False
+    cn_filt = cn.loc[~ex]
+    if 'cn_median' in d.columns:
+        plt.plot(cn,'.',cn_filt,'xr',d['cn_median'],'-k',d['cn_var_u'],'--k',d['cn_var_l'],'--k')
+    else:
+        plt.plot(cn,'.',cn_filt,'xr',d['cn10_median'],'-k',d['cn10_var_u'],'--k',d['cn10_var_l'],'--k')
+    
+    plt.ylim([0,2000])
+    plt.show()
+    
     plt.plot(d['cn_std'],'.',d['cn'],'x')
     plt.show()
     return d, df, dfe
 
+
+def n_plt_cn_std(d):
+    plt.plot(d['cn_std'],'.',d['cn'],'x')
+    plt.show()
+    return
+
+def n_plt_filt(df):
+    df_filt = df.copy()
+    df_filt.loc[np.array(df['exhaust'])] = np.nan
+    plt.plot(df['cn10'],'.',df_filt['cn10'],'.')
+    plt.ylim([0,4000])
+    plt.show()
+
+
+def n_plt_cn_co_bc_raw(d):
+    plt.plot(d['bc'],'.',d['cn'],'.',d['CO'],'.')
+    plt.show()
+
+###############################################################################
+def deviation_dev(df = None):
+    os.chdir(exhaust_path)
+    
+    #dfs_flat = df['2016-05-28 18:40':'2016-05-28 19:00'].copy()
+    #dfs_slope = df['2016-05-28 19:15':'2016-05-28 19:35'].copy()
+    dfs_flat = pd.read_csv('window_flat.csv')
+    dfs_slope = pd.read_csv('window_slope.csv')
+    '''
+    dfs_detrend = pd.Series(signal.detrend(dfs_slope['cn10']))
+    
+    print('Flat stats: mean, std, median, mad')
+    print(dfs_flat['cn10'].mean())
+    print(dfs_flat['cn10'].std())
+    print(dfs_flat['cn10'].median())
+    print(MAD(dfs_flat['cn10']))
+    
+    print('Slope stats: mean, std, median, mad')
+    print(dfs_slope['cn10'].mean())
+    print(dfs_slope['cn10'].std())
+    print(dfs_slope['cn10'].median())
+    print(MAD(dfs_slope['cn10']))
+    
+    print('Detrend stats: std, mad')
+    print(dfs_detrend.std())
+    print(MAD(dfs_detrend))
+
+    '''
+    ###################
+    dfs_poll = pd.read_csv('window_poll.csv')
+    dfs_poll = dfs_poll.drop('exhaust',axis=1)
+    col = 'CO'
+    cn = dfs_poll[col]
+    
+    #cn = cn[10480:16000]
+    #cn = cn[5000:len(cn)]
+    ex = exh.exhaust_flag_rolling_var(dfs_poll,
+                                  col,
+                                  stat_window=60*10,
+                                  num_deviations = 4
+                                  )
+    ex = exh.filt_surrounding_window(
+                                ex,
+                                filt_around_window=60*10
+                                )
+    
+    cn_filt = cn.loc[~ex['exhaust']]
+    plt.plot(cn,'.',cn_filt,'xr',ex[col+'_median'],'-k',ex[col+'_var_u'],'--k',ex[col+'_var_l'],'--k')
+    plt.ylim([0,1000])
+    plt.show()
+    plt.plot(cn_filt,'.')
+    plt.show()
+    
+
+    
+#    param = rayleigh.fit(samp.dropna()[samp<100]) #distribution fitting
+#    pdf_fitted = rayleigh.pdf(bins,loc=param[0],scale=param[1])
+#    
+#    plt.hist(samp.dropna()[samp<100],500,normed=1,alpha=0.75)
+#    plt.plot(bins,pdf_fitted,'.')
+#    plt.show()
+
+
+def exhaust_window(x):
+    '''
+    if any value within the passed window satisfies the value, then return true
+    
+    This is used as a moving window to remove data either side of a filter 
+    event
+    '''
+    if any(x):
+        return True
+    else:
+        return False
+    
+
+
+def rolling_pop_median(x, med_p,mad_p):
+    '''
+    Determine whether the median is being calculated on an exhaust period and 
+    thus is actually exhaust. 
+    If the SAMPLE median is outside 4*MAD of the POPULATION median, then use
+    the population median instead.
+    
+    '''
+    if any(np.isnan(x)):
+        return med_p
+    if type(x) == np.ndarray:
+        med_s = np.median(x)
+    else:
+        med_s = x.median()
+
+    
+    if (med_s > med_p + 10*mad_p) or (med_s < med_p - 10*mad_p):
+        return med_p
+    else:
+        return med_s
+###############################################################################
 def main_old():
     df = load()
     #fwind = 150
@@ -258,18 +394,6 @@ def exhaust_flag_rolling_std(df,
     
     return df
 
-
-def exhaust_window(x):
-    '''
-    if any value within the passed window satisfies the value, then return true
-    
-    This is used as a moving window to remove data either side of a filter 
-    event
-    '''
-    if any(x):
-        return True
-    else:
-        return False
 
 
 
