@@ -252,10 +252,21 @@ def ID_exhaust(df,
 #    sum_exh = ex.rolling(window = filter_window,center=True).sum()
 #    plt.plot(cn,'.',sum_exh,'o')
 #    plt.show()
-
-    ecn = dfcn['exhaust']
-    ebc = dfbc['exhaust']
-    eco = dfco['exhaust']
+    try: 
+        ecn = dfcn['exhaust']
+    except:
+        ecn = df['cn10']
+        ecn[:] =False
+    try:    
+        ebc = dfbc['exhaust']
+    except:
+        ebc = df['cn10']
+        ebc[:] =False
+    try:
+        eco = dfco['exhaust']
+    except:
+        eco = df['cn10']
+        eco[:] = False
     ex = pd.Series([True if any([cn,bc,co]) else False for cn,bc,co in zip(ecn,ebc,eco)],index=eco.index)
     df['exhaust'] = ex
 #    cn = df['cn10']
@@ -278,7 +289,10 @@ def ID_exhaust(df,
 #    plt.show()
 ###############################################################################
 ############################################################################################################################################    
-    
+     
+
+####################################        
+        
     df = filt_surrounding_window(
                                 df.copy(),
                                 filt_around_window=filter_window
@@ -289,7 +303,8 @@ def ID_exhaust(df,
 #    ex = df['exhaust']
 #    ex.loc[ex.isnull()] = False
 #    cn_filt = cn.loc[~ex]
-#    sum_exh_c = ex.rolling(window = filter_window,center=True).sum()
+    
+    
 #    plt.plot(cn,'.',cn_filt,'xr',df['cn10_median'],'-k',df['cn10_var_u'],'--k',df['cn10_var_l'],'--k',sum_exh_c,'o')
 #    plt.title('Filter CN+CO+BC+10min window')
 #    plt.ylim([0,2000])
@@ -328,7 +343,7 @@ def ID_exhaust(df,
     plt.show()
 ###############################################################################
 ############################################################################################################################################
-    return df
+    return df, dfcn, dfco, dfbc
 '''
 def exhaust_flag_rolling_std(df,
                              column='cn10', 
@@ -433,73 +448,59 @@ def exhaust_flag_rolling_var(df,
     
     d = df[column]
     
+    
+    # Calculate the rolling median
+    print('Calculating the rolling median on ' + column)
+    med = d.rolling(window=stat_window,center=True).median()
+    print('Done!')
+    
     # Calculate the rolling MAD
+    print('Calculating the rolling detrended MAD on ' + column)
     mad_array = d.rolling(
                           window=stat_window,
                           center=True
-                          ).apply(
-                                 func=rolling_detrend_stat,
-                                 args=('1')
-                                 )
+                          ).apply(func=rolling_detrended_MAD)
+    print('Done!')
+    
     
     # Calculate the global MAD to use when filling in data
+    print('Calculating a global MAD value to use on the whole dataset')
     mad0 = mad_array.median()
     mad_glob = get_hist_max(mad_array)
     if mad0 > 5*mad_glob:
         mad = mad_glob
     else:
         mad = mad0
-    mad_g_arr = np.empty((len(d),))
-    mad_g_arr.fill(mad)
-    mad_g_arr = pd.Series(mad_g_arr,index=d.index)
-    
-    # Calculate the rolling median
-    med = d.rolling(window=stat_window,center=True).median()
-    
-    # Shift the rolling median to the left of the window
-    med_leftwindow = np.empty((len(d),))
-    med_leftwindow.fill(np.nan)
-    med_leftwindow[0:(len(med)-int(stat_window/2))] = med[int(stat_window/2):len(med)]
-    med_lw = pd.Series(med_leftwindow,index=med.index)
+#    mad_g_arr = np.empty((len(d),))
+#    mad_g_arr.fill(mad)
+#    mad_g_arr = pd.Series(mad_g_arr,index=d.index)
+    print('Done!')
+    print('Iterating through to fill nans and unrealistic stat values')
     # Shift the rolling median to the right of the window
     med_rw = d.rolling(window=stat_window).median()
-    
-    # Calculate the global median
-    med_glob = med.median()
-
+    # Shift the rolling median to the left of the window
+    med_lw = med_rw.shift(-stat_window)
+ 
     # Fill in endpoint sections not covered by the window
     med = fill_window_endpoints(med)
     
-    # Fill values in polluted areas and nans  
-#    med_filled = pd.Series(
-#            [med_glob 
-#             if (
-#                (np.isnan(x)) 
-#                or 
-#                (x > L + 5*mad)#_g_arr) 
-#                or 
-#                (x < L - 5*mad)#_g_arr)
-##                or
-##                (x > R + 5*mad)#_g_arr)
-##                or
-##                (x < R - 5*mad)#_g_arr)
-#                ) 
-#             else 
-#             x 
-#             for x,L,R in zip(med,med_lw,med_rw) ]
-#            ,index=med.index)
-    # Fill values in polluted areas and nans 
-    med_f = med[0]
-    med_filled = med.copy()
-    for i in range(int(stat_window/2),len(d)-int(stat_window/2),1):
-        med_filled[i], med_f = fill_loop(med[i],med_lw[i],med_rw[i],mad,med_f,med_filled)
-    for i in range(int(stat_window/2),len(d)-int(stat_window/2),-1):
-        med_filled[i], med_f = fill_loop(med[i],med_lw[i],med_rw[i],mad,med_f,med_filled)    
-    #med_filled = pd.Series(med_filled,index=med.index)
-        
+     
+    # Fill values in polluted areas and nans
+    med_filled = med.as_matrix()
+    # Move forward through dataset
+    med_filled = fill_loop(med,med_lw,med_rw,mad,med_filled,stat_window,1)
+#    for i in range(int(stat_window/2),len(d)-int(stat_window/2),1):
+#        med_filled[i], med_f = fill_loop(med[i],med_lw[i],med_rw[i],mad,med_f,med_filled)
+    # Move backward through dataset
+    med_filled = fill_loop(med,med_lw,med_rw,mad,med_filled,stat_window,-1)
+#    for i in range(int(stat_window/2),len(d)-int(stat_window/2),-1):
+#        med_filled[i], med_f = fill_loop(med[i],med_lw[i],med_rw[i],mad,med_f,med_filled)    
+    
+    med_filled = pd.Series(med_filled,index=med.index)
+    print('Done!')
            
-#    plt.plot(d,'.k',med+50,'.g',med_rw+5*mad,'--c',med_filled,'.r')  
-#    plt.show()
+      
+    
     
     # Create the exhaust boundary definition using MAD
     var_l = med_filled - num_deviations * mad
@@ -531,24 +532,46 @@ def exhaust_flag_rolling_var(df,
     return df
 
 @numba.jit
-def fill_loop(x,med_lw,med_rw,mad,med_f,med_filled):
-    if (
-        np.isnan(x)
-        or 
-        x > med_lw + 5*mad
-        or 
-        x < med_lw - 5*mad
-        or 
-        x > med_rw + 5*mad
-        or 
-        x < med_rw - 5*mad
-        ):
-        med_filled = med_f
-        
-    else:
-        med_filled = x
-        med_f = x
-    return med_filled, med_f
+def fill_loop(med,med_lw,med_rw,mad,med_filled, stat_window,direction=1):
+    med_f = med[0]
+    med_filled = med.as_matrix()
+    for i in range(int(stat_window/2),len(med)-int(stat_window/2),direction):
+        x = med[i]
+        medlw = med_lw[i]
+        medrw = med_rw[i]        
+        if (
+            np.isnan(x)
+            or 
+            x > medlw + 5*mad
+            or 
+            x < medlw - 5*mad
+            or 
+            x > medrw + 5*mad
+            or 
+            x < medrw - 5*mad
+            ):
+            med_filled[i] = med_f   
+        else:
+            med_filled[i] = x
+            med_f = x
+    return med_filled
+#    if (
+#        np.isnan(x)
+#        or 
+#        x > med_lw + 5*mad
+#        or 
+#        x < med_lw - 5*mad
+#        or 
+#        x > med_rw + 5*mad
+#        or 
+#        x < med_rw - 5*mad
+#        ):
+#        med_filled = med_f   
+#    else:
+#        med_filled = x
+#        med_f = x
+#    
+#    return med_filled, med_f
 
 
 def filt_surrounding_window_SLOW(
@@ -580,39 +603,71 @@ def filt_surrounding_window_SLOW(
 
 
 
-@numba.jit
+
 def filt_surrounding_window(
                             exhaust_df,
                             filt_around_window=60*10
                             ):
-    print('Filtering for '+str(filt_around_window/60) + ' minutes around identified exhaust periods')
-    ex = exhaust_df['exhaust']
-    ex0=ex.copy()
-    filt_limit = int(0.05*filt_around_window)
-    i0 = int(filt_around_window/2)
-    L = len(ex)
-    r = range(i0,L-i0)
-    
-    for i in r:
-        x = ex0[i-i0:i+i0]
-        if sum(x) > filt_limit:
-            ex[i-i0:i+i0] = True
-    exhaust_df['exhaust'] = fill_window_endpoints(ex).astype(bool)
-    return exhaust_df
-
-
-def exhaust_window(x):
-    '''
-    if more than n values within the passed window satisfies the value, then 
-    return true.
-    
-    This is used as a moving window to remove data either side of a filter 
-    event
-    '''
-    if sum(x)>0.05*len(x):
-        return True
+    if type(filt_around_window) == str:
+        print('Filtering for ' + 
+              filt_around_window + 
+              ' minutes around identified exhaust periods')
+        f_window = pd.to_timedelta(filt_around_window)/2
+        filt_window_num = f_window.seconds*2
     else:
-        return False   
+        print('Filtering for '+
+              str(int(filt_around_window/60)) + 
+              ' minutes around identified exhaust periods')
+        f_window = filt_around_window#pd.Timedelta(seconds=filt_around_window)/2
+        filt_window_num = filt_around_window
+    
+    
+    ex = exhaust_df['exhaust']
+    
+    ex = filt_surrounding_window_worker(ex,f_window,filt_window_num)
+    
+    exhaust_df['exhaust'] = fill_window_endpoints(ex).astype(bool)
+    
+    return exhaust_df
+        
+    
+    
+#    ex0=ex.copy()
+#    filt_limit = int(0.05*filt_around_window)
+#    i0 = int(filt_around_window/2)
+#    L = len(ex)
+#    r = range(i0,L-i0)
+#    
+#    for i in r:
+#        x = ex0[i-i0:i+i0]
+#        if sum(x) > filt_limit:
+#            ex[i-i0:i+i0] = True
+    
+
+@numba.jit
+def filt_surrounding_window_worker(ex_df,f_window,filt_window_num):
+    sum_exh = ex_df.rolling(window = f_window,center=True).sum()
+    ex = ex_df.as_matrix()
+    #index = ex.index[sum_exh>0.05*filt_window_num]
+    index = np.where(sum_exh>0.05*filt_window_num)[0]
+    for t in index:
+        ex[t-f_window:t+f_window] = True 
+    
+    return pd.Series(ex,index=ex_df.index)
+
+
+#def exhaust_window(x):
+#    '''
+#    if more than n values within the passed window satisfies the value, then 
+#    return true.
+#    
+#    This is used as a moving window to remove data either side of a filter 
+#    event
+#    '''
+#    if sum(x)>0.05*len(x):
+#        return True
+#    else:
+#        return False   
 
 def get_hist_max(samp):
     n, bins = np.histogram(samp.dropna()[samp<100],500)
@@ -646,21 +701,19 @@ def fill_window_endpoints(data):
         
     return data
 
-def rolling_detrend_stat(x, stat=1):
+@numba.jit
+def rolling_detrended_MAD(x):
     '''
     For each window, we detrend it using a least squares regression,
     then calculate the variability on it. 
-    stat = 1 gives the median absolute deviation, MAD (default)
-    stat = 2 gives the standard deviation
     '''
     x_d = signal.detrend(x)
-    if int(stat) == 1:
-        return MAD(x_d)
-    elif int(stat) == 2:
-        return x_d.std()
-    else:
-        assert False, 'Must choose a stat that is either mad or std'
+    return MAD(x_d)
 
+def rolling_detrended_std(x):
+    x_d = signal.detrend(x)
+    return x_d.std()
+    
 
 def MAD(x):
     if type(x) == np.ndarray:
