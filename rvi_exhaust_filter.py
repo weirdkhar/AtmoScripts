@@ -17,6 +17,7 @@ from dateutil.parser import parse
 import time
 import ctypes  # An included library with Python install.
 from scipy import signal
+from matplotlib import mlab
 import matplotlib.pyplot as plt
 import numba
 
@@ -86,16 +87,18 @@ def create_exhaust_id(df = None,
         
 
     print('--- Creating exhaust ID datastream from in-situ data...')
-    df = ID_exhaust(df,
-                    co_id = co_id,
-                    cn_id = cn_id,
-                    bc_id = bc_id,
-                    filter_window = filter_window,
-                    co_stat_window = co_stat_window,
-                    co_num_devs = co_num_devs,                        
-                    cn_stat_window = cn_stat_window,
-                    cn_num_devs = cn_num_devs,                        
-                    bc_lim = bc_lim)
+    df, dfcn, dfco, dfbc = ID_exhaust(
+                                        df,
+                                        co_id = co_id,
+                                        cn_id = cn_id,
+                                        bc_id = bc_id,
+                                        filter_window = filter_window,
+                                        co_stat_window = co_stat_window,
+                                        co_num_devs = co_num_devs,                        
+                                        cn_stat_window = cn_stat_window,
+                                        cn_num_devs = cn_num_devs,                        
+                                        bc_lim = bc_lim
+                                        )
     
     if abridged:
         df = df[['exhaust']]
@@ -107,7 +110,7 @@ def create_exhaust_id(df = None,
     save_exhaust_id(df,exhaust_path,voylst)
     
     print('--- Exhaust ID created and files saved to ' + exhaust_path)
-    return df
+    return df, dfcn, dfco, dfbc
 
 def delete_previous_files(path):
     os.chdir(path)
@@ -178,90 +181,44 @@ def ID_exhaust(df,
                
                co_stat_window = 10,
                co_num_devs = 4,
-#               co_stat_threshold = 0.245,
                
                cn_stat_window = 10,
                cn_num_devs = 4,
-#               cn_stat_threshold = 50,
                
                bc_lim = 0.07001
                ):
     print('--- Identifying exhaust...')
     if cn_id:
         print('Using CN to ID exhaust')
-#        df = exhaust_flag_rolling_std(df,
         dfcn = exhaust_flag_rolling_var(df.copy(),                                      
                                       column='cn',
                                       stat_window=cn_stat_window,
                                       num_deviations = cn_num_devs
-#                                      stat_threshold=cn_stat_threshold,
-#                                      filt_around_window=filter_window
                                       )
-############################################################################################################################################
-###############################################################################
-#    cn = df['cn10']
-#    ex = df['exhaust']
-#    ex.loc[ex.isnull()] = False
-#    cn_filt = cn.loc[~ex]
-#    plt.plot(cn,'.',cn_filt,'xr',df['cn10_median'],'-k',df['cn10_var_u'],'--k',df['cn10_var_l'],'--k')
-#    plt.title('Filter CN')
-#    plt.ylim([0,2000])
-#    plt.show()    
-###############################################################################
-############################################################################################################################################
     if co_id:
         print('Using CO to ID exhaust')
-#        df = exhaust_flag_rolling_std(df,
         dfco = exhaust_flag_rolling_var(df.copy(),
                                       column='CO',
                                       stat_window=co_stat_window,
                                       num_deviations = co_num_devs
-#                                      stat_threshold=co_stat_threshold,
-#                                      filt_around_window=filter_window
                                       )
-############################################################################################################################################
-###############################################################################
-#    cn = df['cn10']
-#    ex = df['exhaust']
-#    ex.loc[ex.isnull()] = False
-#    cn_filt = cn.loc[~ex]
-#    plt.plot(cn,'.',cn_filt,'xr',df['cn10_median'],'-k',df['cn10_var_u'],'--k',df['cn10_var_l'],'--k')
-#    plt.title('Filter CN+CO')
-#    plt.ylim([0,2000])
-#    plt.show()    
-###############################################################################
-############################################################################################################################################    
     if bc_id:
         print('Using BC to ID exhaust')
         dfbc = exhaust_flag_bc(df.copy(),
                              bc_lim=bc_lim
-#                             filt_around_window=filter_window
                              )
-############################################################################################################################################
-###############################################################################
-#        dfbc_rolling = exhaust_flag_rolling_var(df.copy(),column='BC',stat_window=co_stat_window,num_deviations = co_num_devs)
-#    cn = df['cn10']
-#    ex = df['exhaust']
-#    ex.loc[ex.isnull()] = False
-#    cn_filt = cn.loc[~ex]
-#    plt.plot(cn,'.',cn_filt,'xr',df['cn10_median'],'-k',df['cn10_var_u'],'--k',df['cn10_var_l'],'--k')
-#    plt.title('Filter CN+CO+BC')
-#    plt.ylim([0,2000])
-#    plt.show()    
-#    
-#    sum_exh = ex.rolling(window = filter_window,center=True).sum()
-#    plt.plot(cn,'.',sum_exh,'o')
-#    plt.show()
+
+    # Merge into one
     try: 
         ecn = dfcn['exhaust']
     except:
         ecn = df['cn10']
-        ecn[:] =False
+        ecn[:] = False
     try:    
         ebc = dfbc['exhaust']
     except:
         ebc = df['cn10']
-        ebc[:] =False
+        ebc[:] = False
     try:
         eco = dfco['exhaust']
     except:
@@ -269,111 +226,13 @@ def ID_exhaust(df,
         eco[:] = False
     ex = pd.Series([True if any([cn,bc,co]) else False for cn,bc,co in zip(ecn,ebc,eco)],index=eco.index)
     df['exhaust'] = ex
-#    cn = df['cn10']
-#    cn_f = cn.loc[~ex]
-#    cn_ecn = cn.loc[~ecn]
-#    cn_eco = cn.loc[~eco]
-#    cn_ebc = cn.loc[~ebc]
-#    
-#    plt.plot(cn,'.',cn_ebc,'.r')
-#    plt.title('bc filt only')
-#    plt.show()
-#    plt.plot(cn,'.',cn_ecn,'.r')
-#    plt.title('cn filt only')
-#    plt.show()
-#    plt.plot(cn,'.',cn_eco,'.r')
-#    plt.title('co filt only')
-#    plt.show()
-#    plt.plot(cn,'.',cn_f,'.r')
-#    plt.title('all filters together○')
-#    plt.show()
-###############################################################################
-############################################################################################################################################    
-     
-
-####################################        
-        
+    
+    # Filter around identified periods
     df = filt_surrounding_window(
                                 df.copy(),
                                 filt_around_window=filter_window
                                 )
-############################################################################################################################################
-###############################################################################
-#    cn = df['cn10']
-#    ex = df['exhaust']
-#    ex.loc[ex.isnull()] = False
-#    cn_filt = cn.loc[~ex]
-    
-    
-#    plt.plot(cn,'.',cn_filt,'xr',df['cn10_median'],'-k',df['cn10_var_u'],'--k',df['cn10_var_l'],'--k',sum_exh_c,'o')
-#    plt.title('Filter CN+CO+BC+10min window')
-#    plt.ylim([0,2000])
-#    plt.show()
-#    
-#    df.to_hdf('df.h5',key='d')
-#    dfbc.to_hdf('dfbc.h5',key='d')
-#    dfcn.to_hdf('dfcn.h5',key='d')
-#    dfco.to_hdf('dfco.h5',key='d')
-#    dfw.to_hdf('dfw.h5',key='d')
-    
-    ex = df['exhaust']    
-    df_filt = df.loc[~ex]
-    
-    if 'cn10' in df.columns:
-        plt.plot(df['cn10'],'.',df_filt['cn10'],'.r')
-    else:
-        plt.plot(df['cn'],'.',df_filt['cn'],'.r')
-    plt.title('CN raw and filt')
-    plt.ylim([0,2000])
-    plt.show()
-    
-    plt.plot(df['ccn'],'.',df_filt['ccn'],'.r')
-    plt.title('CCN raw and filt')
-    plt.ylim([0,2000])
-    plt.show()
-
-    plt.plot(df_filt['WindDirRel_vmean'],df_filt['cn10'],'.')
-    plt.title('wind dir vs cn10')
-    plt.show()
-    plt.plot(df_filt['WindDirRel_port'],df_filt['CO'],'.')
-    plt.title('wind dir vs co')
-    plt.show()
-    plt.plot(df_filt['WindDirRel_port'],df_filt['ccn'],'.')
-    plt.title('wind dir vs ccn')
-    plt.show()
-###############################################################################
-############################################################################################################################################
     return df, dfcn, dfco, dfbc
-'''
-def exhaust_flag_rolling_std(df,
-                             column='cn10', 
-                             stat_window=10,
-                             stat_threshold = 0.03,
-                             filt_around_window=1):
-    print('--- Identifying exhaust by the standard deviation of '+column)
-    df[column+'_std'] = df[column].rolling(window=stat_window,center=True).std()
-    #df['cn_stdminute'] = df[column].rolling(window=181,center=True).std()
-    
-    # Filter for min std over threshold
-    exhaust_rows0 = df[column+'_std'] > stat_threshold
-    # Filter for sec std over threshold
-    #exhaust_rows0.loc[(df['cn_stdminute'] > 10.5)] = True
-    
-    # Filter data around identified periods
-    exhaust_rows = exhaust_rows0.rolling(window=filt_around_window,
-                                         center=True).apply(exhaust_window)
-    exhaust_rows.fillna(True,inplace=True)
-    exhaust_rows = exhaust_rows.astype(bool)
-    
-    if 'exhaust' not in df:
-        # Initialise
-        df['exhaust'] = False
-    
-    df.loc[exhaust_rows,'exhaust'] = True
-    
-    return df
-'''
-
     
 def exhaust_flag_bc(df,
                     bc_lim=0.05,
@@ -394,15 +253,9 @@ def exhaust_flag_bc(df,
     exh = df['exhaust'].copy()
     exh_bc = df[col] > bc_lim
     
-    #df.loc[ex_bc,'exhaust'] = True
-    df['exhaust'] = [True if (ebc or ex) else False for (ebc, ex) in zip(exh_bc,exh)] #.loc[df[col] > bc_lim] = True
     
-    # Filter data around identified periods
-#    exhaust_rows = df['exhaust'].rolling(window=filt_around_window,
-#                                         center=True).apply(exhaust_window)
-#    exhaust_rows.fillna(True,inplace=True)
-#    exhaust_rows = exhaust_rows.astype(bool)
-#    df.loc[exhaust_rows,'exhaust'] = True
+    df['exhaust'] = [True if (ebc or ex) else False for (ebc, ex) in zip(exh_bc,exh)]
+    
     return df
 
 
@@ -471,10 +324,8 @@ def exhaust_flag_rolling_var(df,
         mad = mad_glob
     else:
         mad = mad0
-#    mad_g_arr = np.empty((len(d),))
-#    mad_g_arr.fill(mad)
-#    mad_g_arr = pd.Series(mad_g_arr,index=d.index)
     print('Done!')
+
     print('Iterating through to fill nans and unrealistic stat values')
     # Shift the rolling median to the right of the window
     med_rw = d.rolling(window=stat_window).median()
@@ -483,24 +334,17 @@ def exhaust_flag_rolling_var(df,
  
     # Fill in endpoint sections not covered by the window
     med = fill_window_endpoints(med)
-    
-     
+         
     # Fill values in polluted areas and nans
     med_filled = med.as_matrix()
     # Move forward through dataset
     med_filled = fill_loop(med,med_lw,med_rw,mad,med_filled,stat_window,1)
-#    for i in range(int(stat_window/2),len(d)-int(stat_window/2),1):
-#        med_filled[i], med_f = fill_loop(med[i],med_lw[i],med_rw[i],mad,med_f,med_filled)
     # Move backward through dataset
     med_filled = fill_loop(med,med_lw,med_rw,mad,med_filled,stat_window,-1)
-#    for i in range(int(stat_window/2),len(d)-int(stat_window/2),-1):
-#        med_filled[i], med_f = fill_loop(med[i],med_lw[i],med_rw[i],mad,med_f,med_filled)    
     
     med_filled = pd.Series(med_filled,index=med.index)
     print('Done!')
-           
-      
-    
+
     
     # Create the exhaust boundary definition using MAD
     var_l = med_filled - num_deviations * mad
@@ -555,53 +399,6 @@ def fill_loop(med,med_lw,med_rw,mad,med_filled, stat_window,direction=1):
             med_filled[i] = x
             med_f = x
     return med_filled
-#    if (
-#        np.isnan(x)
-#        or 
-#        x > med_lw + 5*mad
-#        or 
-#        x < med_lw - 5*mad
-#        or 
-#        x > med_rw + 5*mad
-#        or 
-#        x < med_rw - 5*mad
-#        ):
-#        med_filled = med_f   
-#    else:
-#        med_filled = x
-#        med_f = x
-#    
-#    return med_filled, med_f
-
-
-def filt_surrounding_window_SLOW(
-                            exhaust_df,
-                            filt_around_window=60*10
-                            ):
-    print('Filtering for '+str(filt_around_window/60) + ' minutes around identified exhaust periods')
-    ex = exhaust_df['exhaust'].copy()
-    ex0 = ex.copy()
-    
-    truelocs = np.where(ex==True)[0] # choose only the indices where exhaust has been identified.
-    for i in truelocs:
-        if (i < int(filt_around_window/2)) or (i > len(ex)-int(filt_around_window/2)):
-            continue
-        
-        x = ex0[i-int(filt_around_window/2):i+int(filt_around_window/2)]
-        if sum(x) > 0.05*filt_around_window:
-            ex.iloc[i-int(filt_around_window/2):i+int(filt_around_window/2)] = True
-    '''
-    exhaust = exhaust.rolling(
-                              window=int(filt_around_window)
-                              ,center=True
-                              ).apply(
-                                      exhaust_window
-                                      )
-    '''
-    exhaust_df['exhaust'] = fill_window_endpoints(ex).astype(bool)
-    return exhaust_df
-
-
 
 
 def filt_surrounding_window(
@@ -630,19 +427,7 @@ def filt_surrounding_window(
     
     return exhaust_df
         
-    
-    
-#    ex0=ex.copy()
-#    filt_limit = int(0.05*filt_around_window)
-#    i0 = int(filt_around_window/2)
-#    L = len(ex)
-#    r = range(i0,L-i0)
-#    
-#    for i in r:
-#        x = ex0[i-i0:i+i0]
-#        if sum(x) > filt_limit:
-#            ex[i-i0:i+i0] = True
-    
+  
 
 @numba.jit
 def filt_surrounding_window_worker(ex_df,f_window,filt_window_num):
@@ -656,24 +441,12 @@ def filt_surrounding_window_worker(ex_df,f_window,filt_window_num):
     return pd.Series(ex,index=ex_df.index)
 
 
-#def exhaust_window(x):
-#    '''
-#    if more than n values within the passed window satisfies the value, then 
-#    return true.
-#    
-#    This is used as a moving window to remove data either side of a filter 
-#    event
-#    '''
-#    if sum(x)>0.05*len(x):
-#        return True
-#    else:
-#        return False   
 
 def get_hist_max(samp):
     n, bins = np.histogram(samp.dropna()[samp<100],500)
     return bins[np.argmax(n)]
 
-
+@numba.jit
 def fill_window_endpoints(data):
     if type(data.index[0]) is not int:
         index = data.index
@@ -707,14 +480,14 @@ def rolling_detrended_MAD(x):
     For each window, we detrend it using a least squares regression,
     then calculate the variability on it. 
     '''
-    x_d = signal.detrend(x)
+    x_d = mlab.detrend_linear(x)
     return MAD(x_d)
 
 def rolling_detrended_std(x):
     x_d = signal.detrend(x)
     return x_d.std()
     
-
+@numba.jit
 def MAD(x):
     if type(x) == np.ndarray:
         return 1.4826*np.median(np.abs(x - np.median(x)))
