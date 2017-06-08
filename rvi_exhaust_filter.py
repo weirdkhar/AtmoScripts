@@ -20,6 +20,7 @@ from scipy import signal
 from matplotlib import mlab
 import matplotlib.pyplot as plt
 import numba
+import statistics as stats
 
 local_path_cn = 's:\\in2016_v03\\cpc\\'
 local_path_uwy = 's:\\in2016_v03\\uwy\\'
@@ -55,11 +56,11 @@ def create_exhaust_id(df = None,
                       filter_window = 60*10,
                       
                       co_stat_window = 10,
-                      co_num_devs = 4,
+                      co_num_devs = 5,
                       #co_stat_threshold = 0.245,
                       
                       cn_stat_window = 10,
-                      cn_num_devs = 4,
+                      cn_num_devs = 5,
                       #cn_stat_threshold = 50,
                       
                       bc_lim = 0.07001
@@ -124,7 +125,7 @@ def save_exhaust_id(df,
                     voylst, 
                     saveh5 = True, 
                     savenc = True, 
-                    savecsv = True):
+                    savecsv = False):
     ''' Saves exhaust as h5, netcdf and csv file '''
     
     print('--- Saving to file')
@@ -195,6 +196,7 @@ def ID_exhaust(df,
                                       stat_window=cn_stat_window,
                                       num_deviations = cn_num_devs
                                       )
+    
     if co_id:
         print('Using CO to ID exhaust')
         dfco = exhaust_flag_rolling_var(df.copy(),
@@ -202,6 +204,7 @@ def ID_exhaust(df,
                                       stat_window=co_stat_window,
                                       num_deviations = co_num_devs
                                       )
+    
     if bc_id:
         print('Using BC to ID exhaust')
         dfbc = exhaust_flag_bc(df.copy(),
@@ -250,12 +253,10 @@ def exhaust_flag_bc(df,
         # Initialise
         df['exhaust'] = False
     
-    exh = df['exhaust'].copy()
     exh_bc = df[col] > bc_lim
-    
-    
-    df['exhaust'] = [True if (ebc or ex) else False for (ebc, ex) in zip(exh_bc,exh)]
-    
+    #exh = df['exhaust'].copy()
+    #df['exhaust'] = [True if (ebc or ex) else False for (ebc, ex) in zip(exh_bc,exh)]
+    df['exhaust'] = exh_bc
     return df
 
 
@@ -263,7 +264,7 @@ def exhaust_flag_bc(df,
 def exhaust_flag_rolling_var(df,
                               column='cn',
                               stat_window=60*10,
-                              num_deviations = 4
+                              num_deviations = 5
                               ):
     '''
     Identifies the exhaust using a rolling variability filter. The filter 
@@ -281,7 +282,7 @@ def exhaust_flag_rolling_var(df,
         - stat_window - the width of the rolling window on which to calculate 
             the median and mad
         - num_deviations - the number of MADs around the median outside which 
-            is identified as exhaust. Default 4.
+            is identified as exhaust. Default 5.
     '''
     if column not in df:
         if column == 'cn':
@@ -317,16 +318,10 @@ def exhaust_flag_rolling_var(df,
     
     
     # Calculate the global MAD to use when filling in data
-    print('Calculating a global MAD value to use on the whole dataset')
-    mad0 = mad_array.median()
-    mad_glob = get_hist_max(mad_array)
-    if mad0 > 5*mad_glob:
-        mad = mad_glob
-    else:
-        mad = mad0
-    print('Done!')
+    mad = mad_array.median()
 
-    print('Iterating through to fill nans and unrealistic stat values')
+
+    print('Replacing unrealistic stat values')
     # Shift the rolling median to the right of the window
     med_rw = d.rolling(window=stat_window).median()
     # Shift the rolling median to the left of the window
@@ -335,14 +330,41 @@ def exhaust_flag_rolling_var(df,
     # Fill in endpoint sections not covered by the window
     med = fill_window_endpoints(med)
          
-    # Fill values in polluted areas and nans
-    med_filled = med.as_matrix()
+    # Fill values in polluted areas
+    n = 10
     # Move forward through dataset
-    med_filled = fill_loop(med,med_lw,med_rw,mad,med_filled,stat_window,1)
+    med_filled = pd.Series([ms 
+                       if any([m>ml+n*mad,
+                               m>ml-n*mad,
+                               m>mr+n*mad,
+                               m>mr-n*mad]) 
+                       else m 
+                       for ms, m,ml,mr in zip(med.shift(1),
+                                              med,
+                                              med_lw,
+                                              med_rw)
+                       ]
+                       ,index=d.index)
     # Move backward through dataset
-    med_filled = fill_loop(med,med_lw,med_rw,mad,med_filled,stat_window,-1)
+    med_filled = pd.Series(np.asarray(
+                       [ms 
+                       if any([m>ml+n*mad,
+                               m>ml-n*mad,
+                               m>mr+n*mad,
+                               m>mr-n*mad]) 
+                       else m 
+                       for ms,m,ml,mr in zip(med.shift(-1)[::-1],
+                                             med_filled[::-1],
+                                             med_lw[::-1],
+                                             med_rw[::-1])
+                       ])[::-1]
+                       ,index=d.index)
+                       
+    print('Done!')
     
-    med_filled = pd.Series(med_filled,index=med.index)
+    # fill in nans
+    print('Interpolating nans')
+    med_filled = interpolate_nans(med_filled)
     print('Done!')
 
     
@@ -352,8 +374,8 @@ def exhaust_flag_rolling_var(df,
     
     # Create the exhaust
     exhaust = pd.Series(
-                [(d0 > u) or (d0 < l) for d0,u,l in zip(d,var_u,var_l)]
-                ,index=d.index)
+                       [(d0 > u) or (d0 < l) for d0,u,l in zip(d,var_u,var_l)],
+                       index=d.index)
 
     # fill in endpoints created by rolling window    
     exhaust = fill_window_endpoints(exhaust)
@@ -372,33 +394,50 @@ def exhaust_flag_rolling_var(df,
     df[column+'_median'] = med_filled
     df[column+'_var_l'] = var_l
     df[column+'_var_u'] = var_u
+
+
+    cn = df['cn10']
+    ex = df['exhaust']
+    cn_filt = cn.loc[~ex]
+    plt.plot(cn,'.b',cn_filt,'.r',df['cn10_median'],'-k',df['cn10_var_u'],'--k',df['cn10_var_l'],'--k')
     
+    plt.ylim([0,2000])
+    plt.title(str(num_deviations)+' mad')
+    plt.show()
     return df
 
-@numba.jit
-def fill_loop(med,med_lw,med_rw,mad,med_filled, stat_window,direction=1):
-    med_f = med[0]
-    med_filled = med.as_matrix()
-    for i in range(int(stat_window/2),len(med)-int(stat_window/2),direction):
-        x = med[i]
-        medlw = med_lw[i]
-        medrw = med_rw[i]        
-        if (
-            np.isnan(x)
-            or 
-            x > medlw + 5*mad
-            or 
-            x < medlw - 5*mad
-            or 
-            x > medrw + 5*mad
-            or 
-            x < medrw - 5*mad
-            ):
-            med_filled[i] = med_f   
-        else:
-            med_filled[i] = x
-            med_f = x
-    return med_filled
+def interpolate_nans(data):
+    mask = np.isnan(data)
+    data[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), data[~mask])
+    return data
+
+#@numba.jit
+#def fill_loop(med,med_lw,med_rw,mad,med_filled, stat_window,direction=1):
+#    if direction==1:
+#        med_f = med[0]
+#    elif direction == -1:
+#        med_f = med[-1]
+#    med_filled = med.as_matrix()
+#    for i in range(int(stat_window/2),len(med)-int(stat_window/2),direction):
+#        x = med[i]
+#        medlw = med_lw[i]
+#        medrw = med_rw[i]        
+#        if (
+#            np.isnan(x)
+#            or 
+#            x > medlw + 10*mad
+#            or 
+#            x < medlw - 10*mad
+#            or 
+#            x > medrw + 10*mad
+#            or 
+#            x < medrw - 10*mad
+#            ):
+#            med_filled[i] = med_f   
+#        else:
+#            med_filled[i] = x
+#            med_f = x
+#    return med_filled
 
 
 def filt_surrounding_window(
@@ -447,7 +486,7 @@ def get_hist_max(samp):
     return bins[np.argmax(n)]
 
 @numba.jit
-def fill_window_endpoints(data):
+def fill_window_endpoints_slower(data):
     if type(data.index[0]) is not int:
         index = data.index
         cols = data.name
@@ -473,6 +512,14 @@ def fill_window_endpoints(data):
         data = data[cols]
         
     return data
+@numba.jit
+def fill_window_endpoints(a):
+    # https://stackoverflow.com/questions/9537543/replace-nans-in-numpy-array-with-closest-non-nan-value
+    ind = np.where(~np.isnan(a))[0]
+    first, last = ind[0], ind[-1]
+    a[:first] = a[first]
+    a[last + 1:] = a[last]
+    return a
 
 @numba.jit
 def rolling_detrended_MAD(x):
@@ -488,12 +535,19 @@ def rolling_detrended_std(x):
     return x_d.std()
     
 @numba.jit
-def MAD(x):
+def MAD_slow(x):
     if type(x) == np.ndarray:
         return 1.4826*np.median(np.abs(x - np.median(x)))
     else:
         return 1.4826*np.abs(x - x.median()).median()
-    
+
+#@numba.jit
+def MAD(x):
+    if type(x) == np.ndarray:
+        return 1.4826*stats.median(np.abs(x - stats.median(x)))
+    else:
+        return 1.4826*np.abs(x - x.median()).median()
+        
     
 #==============================================================================
 # File IO
