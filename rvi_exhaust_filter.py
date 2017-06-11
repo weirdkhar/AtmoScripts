@@ -213,17 +213,17 @@ def ID_exhaust(df,
 
     # Merge into one
     try: 
-        ecn = dfcn['exhaust']
+        ecn = dfcn['exhaust'].copy()
     except:
         ecn = df['cn10']
         ecn[:] = False
     try:    
-        ebc = dfbc['exhaust']
+        ebc = dfbc['exhaust'].copy()
     except:
         ebc = df['cn10']
         ebc[:] = False
     try:
-        eco = dfco['exhaust']
+        eco = dfco['exhaust'].copy()
     except:
         eco = df['cn10']
         eco[:] = False
@@ -319,7 +319,7 @@ def exhaust_flag_rolling_var(df,
     
     # Calculate the global MAD to use when filling in data
     mad = mad_array.median()
-
+#    mad = MAD(d)
 
     print('Replacing unrealistic stat values')
     # Shift the rolling median to the right of the window
@@ -333,28 +333,53 @@ def exhaust_flag_rolling_var(df,
     # Fill values in polluted areas
     n = 10
     # Move forward through dataset
-    med_filled = pd.Series([ms 
+#    med_filled = pd.Series([ms 
+#                       if any([m>ml+n*mad,
+#                               m>ml-n*mad,
+#                               m>mr+n*mad,
+#                               m>mr-n*mad]) 
+#                       else m 
+#                       for ms, m,ml,mr in zip(med.shift(1),
+#                                              med,
+#                                              med_lw,
+#                                              med_rw)
+#                       ]
+#                       ,index=d.index)
+#    # Move backward through dataset
+#    med_filled = pd.Series(np.asarray(
+#                       [ms 
+#                       if any([m>ml+n*mad,
+#                               m>ml-n*mad,
+#                               m>mr+n*mad,
+#                               m>mr-n*mad]) 
+#                       else m 
+#                       for ms,m,ml,mr in zip(med.shift(-1)[::-1],
+#                                             med_filled[::-1],
+#                                             med_lw[::-1],
+#                                             med_rw[::-1])
+#                       ])[::-1]
+#                       ,index=d.index)
+                       
+    med_filled = pd.Series([np.nan 
                        if any([m>ml+n*mad,
                                m>ml-n*mad,
                                m>mr+n*mad,
                                m>mr-n*mad]) 
                        else m 
-                       for ms, m,ml,mr in zip(med.shift(1),
-                                              med,
+                       for m,ml,mr in zip(med,
                                               med_lw,
                                               med_rw)
                        ]
                        ,index=d.index)
     # Move backward through dataset
     med_filled = pd.Series(np.asarray(
-                       [ms 
+                       [np.nan
                        if any([m>ml+n*mad,
                                m>ml-n*mad,
                                m>mr+n*mad,
                                m>mr-n*mad]) 
                        else m 
-                       for ms,m,ml,mr in zip(med.shift(-1)[::-1],
-                                             med_filled[::-1],
+                       for m,ml,mr in zip(med_filled[::-1],
                                              med_lw[::-1],
                                              med_rw[::-1])
                        ])[::-1]
@@ -396,14 +421,14 @@ def exhaust_flag_rolling_var(df,
     df[column+'_var_u'] = var_u
 
 
-    cn = df['cn10']
-    ex = df['exhaust']
-    cn_filt = cn.loc[~ex]
-    plt.plot(cn,'.b',cn_filt,'.r',df['cn10_median'],'-k',df['cn10_var_u'],'--k',df['cn10_var_l'],'--k')
-    
-    plt.ylim([0,2000])
-    plt.title(str(num_deviations)+' mad')
-    plt.show()
+#    cn = df['cn10']
+#    ex = df['exhaust']
+#    cn_filt = cn.loc[~ex]
+#    plt.plot(cn,'.b',cn_filt,'.r',df['cn10_median'],'-k',df['cn10_var_u'],'--k',df['cn10_var_l'],'--k')
+#    
+#    plt.ylim([0,2000])
+#    plt.title(str(num_deviations)+' mad')
+#    plt.show()
     return df
 
 def interpolate_nans(data):
@@ -454,7 +479,7 @@ def filt_surrounding_window(
         print('Filtering for '+
               str(int(filt_around_window/60)) + 
               ' minutes around identified exhaust periods')
-        f_window = filt_around_window#pd.Timedelta(seconds=filt_around_window)/2
+        f_window = int(filt_around_window/2)#pd.Timedelta(seconds=filt_around_window)/2
         filt_window_num = filt_around_window
     
     
@@ -472,8 +497,7 @@ def filt_surrounding_window(
 def filt_surrounding_window_worker(ex_df,f_window,filt_window_num):
     sum_exh = ex_df.rolling(window = f_window,center=True).sum()
     ex = ex_df.as_matrix()
-    #index = ex.index[sum_exh>0.05*filt_window_num]
-    index = np.where(sum_exh>0.05*filt_window_num)[0]
+    index = np.where(sum_exh>0.10*filt_window_num)[0]
     for t in index:
         ex[t-f_window:t+f_window] = True 
     
@@ -512,6 +536,7 @@ def fill_window_endpoints_slower(data):
         data = data[cols]
         
     return data
+
 @numba.jit
 def fill_window_endpoints(a):
     # https://stackoverflow.com/questions/9537543/replace-nans-in-numpy-array-with-closest-non-nan-value
