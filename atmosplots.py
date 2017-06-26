@@ -1306,7 +1306,7 @@ def saveorshowplot(plt,SaveOrShowPlot, outputpath, outputfilename):
             print('Output path was not specified. Plots have been saved to "Desktop\Plots".')
         os.chdir(outputpath)
         plt.savefig(outputfilename+'.png')
-        #save2pdf(fig,outputfilename+'pdf',outputpath)
+        #save2pdf(fig,outputfilename+'.pdf',outputpath)
         plt.close()
     elif SaveOrShowPlot.lower() == 'wait':
         # do nothing for now, because we're just part of a subplot
