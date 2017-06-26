@@ -1477,7 +1477,8 @@ def uncertainty_calc(data,
     Calculates and propogates uncertainty for each calibration process
     '''
     # Remove 0 divisors
-    sigma_divisor = pd.Series([np.nan if i==0 else i for i in sigma_divisor ])
+    sigma_divisor = pd.Series([np.nan if i==0 else i for i in sigma_divisor ],
+                              index = data.index)
         
     if 'ccn_sigma' in data.columns:
         data[output_sigma_name] = data[col_name] * \
