@@ -29,17 +29,15 @@ master_path = 'h:\\code\\AtmoScripts\\'
 exhaust_path = 'r:\\RV_Investigator\\'
 
 
-old = False
-
 os.chdir(master_path)
-if os.path.isfile('exhaust_filter_test_data.h5') & True:
+if os.path.isfile('exhaust_filter_test_data.h5') & False:
     os.remove('exhaust_filter_test_data.h5')
 
-startdate = '2016-05-29 00:00:00'
-enddate = '2016-05-30 16:00:00'
-    
-#startdate = '2016-05-17 03:00:00'
-#enddate = '2016-05-17 12:00:00'
+startdate = '2016-04-25'
+enddate = '2016-06-08'
+
+#startdate = '2016-05-07'
+#enddate = '2016-05-09'
 
 '''
 Determined:
@@ -62,13 +60,11 @@ def main(force_reload_exhaust = False,
          
          filter_window = 60*10,
          
-         co_stat_window = 60*10,
-         co_num_devs = 4,
-#         co_stat_threshold = 0.245,
-         
-         cn_stat_window = 60*10,
-         cn_num_devs = 4,
-#         cn_stat_threshold = 70, #50
+         co_stat_window = 60*5,
+         co_num_devs = 3,
+        
+         cn_stat_window = 60*5,
+         cn_num_devs = 3,
          
          bc_lim = 0.07001):
     
@@ -76,7 +72,7 @@ def main(force_reload_exhaust = False,
     
     df = load()
     
-    dfe = exh.create_exhaust_id(df,
+    dfe, dfcn, dfco, dfbc = exh.create_exhaust_id(df,
                                 exhaust_path = exhaust_path,
                                 startdate = startdate,
                                 enddate = enddate,
@@ -93,6 +89,12 @@ def main(force_reload_exhaust = False,
                                 cn_num_devs = cn_num_devs,                        
                                 bc_lim = bc_lim
                                 )
+    df.to_hdf('in2016_v03_df.h5',key='data')
+    dfe.to_hdf('in2016_v03_dfe.h5',key='data')
+    dfcn.to_hdf('in2016_v03_dfcn.h5',key='data')
+    dfco.to_hdf('in2016_v03_dfco.h5',key='data')
+    dfbc.to_hdf('in2016_v03_dfbc.h5',key='data')
+    
     for col in dfe.columns:
         if col in df.columns:
             df = df.drop(col,axis=1)
@@ -100,17 +102,43 @@ def main(force_reload_exhaust = False,
     
     cn = d['cn10']
     ex = d['exhaust']
-    ex.loc[ex.isnull()] = False
     cn_filt = cn.loc[~ex]
     if 'cn_median' in d.columns:
-        plt.plot(cn,'.',cn_filt,'xr',d['cn_median'],'-k',d['cn_var_u'],'--k',d['cn_var_l'],'--k')
+        plt.plot(cn,'.',cn_filt,'xr',dfcn['cn_median'],'-k',dfcn['cn_var_u'],'--k',dfcn['cn_var_l'],'--k')
     else:
-        plt.plot(cn,'.',cn_filt,'xr',d['cn10_median'],'-k',d['cn10_var_u'],'--k',d['cn10_var_l'],'--k')
+        plt.plot(cn,'.',cn_filt,'xr',dfcn['cn10_median'],'-k',dfcn['cn10_var_u'],'--k',dfcn['cn10_var_l'],'--k')
     
     plt.ylim([0,2000])
     plt.show()
     
     plt.plot(d['cn_std'],'.',d['cn'],'x')
+    plt.show()
+    
+    
+    ex = df['exhaust']    
+    df_filt = df.loc[~ex]
+    
+    if 'cn10' in df.columns:
+        plt.plot(df['cn10'],'.',df_filt['cn10'],'.r')
+    else:
+        plt.plot(df['cn'],'.',df_filt['cn'],'.r')
+    plt.title('CN raw and filt')
+    plt.ylim([0,2000])
+    plt.show()
+    
+    plt.plot(df['ccn'],'.',df_filt['ccn'],'.r')
+    plt.title('CCN raw and filt')
+    plt.ylim([0,2000])
+    plt.show()
+
+    plt.plot(df_filt['WindDirRel_vmean'],df_filt['cn10'],'.')
+    plt.title('wind dir vs cn10')
+    plt.show()
+    plt.plot(df_filt['WindDirRel_port'],df_filt['CO'],'.')
+    plt.title('wind dir vs co')
+    plt.show()
+    plt.plot(df_filt['WindDirRel_port'],df_filt['ccn'],'.')
+    plt.title('wind dir vs ccn')
     plt.show()
     return d, df, dfe
 
@@ -685,6 +713,7 @@ def load():
         
         os.chdir(local_path_aer)
         dfa = pd.read_hdf('concat_aerodyne.h5',key='ghg')
+#        dfa = exh.load_co(local_path_aer, startdate, enddate)
         dfa = dfa[startdate:enddate].copy()
         dfa = ghg.resample_interpolation(dfa)
         
@@ -733,7 +762,7 @@ def load():
         # Merge datasets
         #======================================================================
         print('Merging data')
-        df = dfa.join(dfp,how='outer')
+        df = dfa#.join(dfp,how='outer')
         df = df.join(dfc,how='outer')
         df = df.join(dfcc,how='outer')
         df = df.join(dfu,how='outer')
