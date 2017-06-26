@@ -316,91 +316,117 @@ def exhaust_flag_rolling_var(df,
                           ).apply(func=rolling_detrended_MAD)
     print('Done!')
     
+    # Calcualte the mad to be used for outlier detection
+    mad_g = mad_array.median()
     
     # Calculate the global MAD to use when filling in data
-    mad = mad_array.median()
-#    mad = MAD(d)
-
+    mad_p = MAD(d)
+    
     print('Replacing unrealistic stat values')
-    # Shift the rolling median to the right of the window
-    med_rw = d.rolling(window=stat_window).median()
-    # Shift the rolling median to the left of the window
-    med_lw = med_rw.shift(-stat_window)
- 
-    # Fill in endpoint sections not covered by the window
-    med = fill_window_endpoints(med)
-         
-    # Fill values in polluted areas
-    n = 10
-    # Move forward through dataset
-#    med_filled = pd.Series([ms 
-#                       if any([m>ml+n*mad,
-#                               m>ml-n*mad,
-#                               m>mr+n*mad,
-#                               m>mr-n*mad]) 
-#                       else m 
-#                       for ms, m,ml,mr in zip(med.shift(1),
-#                                              med,
-#                                              med_lw,
-#                                              med_rw)
-#                       ]
-#                       ,index=d.index)
-#    # Move backward through dataset
-#    med_filled = pd.Series(np.asarray(
-#                       [ms 
-#                       if any([m>ml+n*mad,
-#                               m>ml-n*mad,
-#                               m>mr+n*mad,
-#                               m>mr-n*mad]) 
-#                       else m 
-#                       for ms,m,ml,mr in zip(med.shift(-1)[::-1],
-#                                             med_filled[::-1],
-#                                             med_lw[::-1],
-#                                             med_rw[::-1])
-#                       ])[::-1]
-#                       ,index=d.index)
-                       
-    med_filled = pd.Series([np.nan 
-                       if any([m>ml+n*mad,
-                               m>ml-n*mad,
-                               m>mr+n*mad,
-                               m>mr-n*mad]) 
-                       else m 
-                       for m,ml,mr in zip(med,
-                                              med_lw,
-                                              med_rw)
-                       ]
-                       ,index=d.index)
-    # Move backward through dataset
-    med_filled = pd.Series(np.asarray(
-                       [np.nan
-                       if any([m>ml+n*mad,
-                               m>ml-n*mad,
-                               m>mr+n*mad,
-                               m>mr-n*mad]) 
-                       else m 
-                       for m,ml,mr in zip(med_filled[::-1],
-                                             med_lw[::-1],
-                                             med_rw[::-1])
-                       ])[::-1]
-                       ,index=d.index)
-                       
-    print('Done!')
     
-    # fill in nans
-    print('Interpolating nans')
+    n = num_deviations
+    std = d.rolling(window=stat_window,center=True).std()
+    med = d.rolling(window=stat_window,center=True).median()
+    med_filled = pd.Series([np.nan if (s > n*mad_g) else m for (s,m) in zip(std,med)],index=d.index)
+    
+    mad_filled = mad_array.copy()
+    mad_filled[med_filled.isnull()] = np.nan
+    
+    med_filled = fill_window_endpoints(med_filled)
     med_filled = interpolate_nans(med_filled)
-    print('Done!')
-
     
-    # Create the exhaust boundary definition using MAD
-    var_l = med_filled - num_deviations * mad
-    var_u = med_filled + num_deviations * mad
+    mad_filled = fill_window_endpoints(mad_filled)
+    mad_filled = interpolate_nans(mad_filled)
     
-    # Create the exhaust
-    exhaust = pd.Series(
-                       [(d0 > u) or (d0 < l) for d0,u,l in zip(d,var_u,var_l)],
-                       index=d.index)
+    
+    var_l = med_filled - n*mad_filled
+    var_u = med_filled + n*mad_filled
+    
+    
+    #exhaust = pd.Series([(d0 > u) or (d0 < l) for d0,u,l in zip(d,var_u,var_l)],index=d.index)
+    
+    # Only use the upper bound so that we don't mistakenly identify calibrations and zeros as exhaust
+    exhaust = pd.Series([(d0 > u) for d0,u in zip(d,var_u)],index=d.index)
+    
+#    
+#    
+#    
+#    
+#    
+#    # Shift the rolling median to the right of the window
+#    med_rw = d.rolling(window=stat_window).median()
+#    # Shift the rolling median to the left of the window
+#    med_lw = med_rw.shift(-stat_window)
+# 
+#    # Fill in endpoint sections not covered by the window
+#    med = fill_window_endpoints(med)
+#         
+#    # Fill values in polluted areas
+#    n = 3
+#    # Move forward through dataset
+##    med_filled = pd.Series(
+##                       [ms 
+##                       if any([m>ml+n*mad_p,
+##                               m<ml-n*mad_p,
+##                               m>mr+n*mad_p,
+##                               m<mr-n*mad_p]) 
+##                       else m 
+##                       for ms, m,ml,mr in zip(med.shift(1),
+##                                              med,
+##                                              med_lw,
+##                                              med_rw)
+##                       ]
+##                       ,index=d.index)
+##    # Move backward through dataset
+##    med_filled = pd.Series(np.asarray(
+##                       [ms 
+##                       if any([m>ml+n*mad_p,
+##                               m<ml-n*mad_p,
+##                               m>mr+n*mad_p,
+##                               m<mr-n*mad_p]) 
+##                       else m 
+##                       for ms,m,ml,mr in zip(med.shift(-1)[::-1],
+##                                             med_filled[::-1],
+##                                             med_lw[::-1],
+##                                             med_rw[::-1])
+##                       ])[::-1]
+##                       ,index=d.index)
+#    
+#    med_filled = med.copy()
+#    w = int(stat_window/2)
+#    n = 3
+#    for i in range(w,len(med)-w):
+#        m = med.iloc[i]
+#        mf_ls = med_filled.iloc[i-w]
+#        mad = mad_array.iloc[i]
+#        if np.isnan(mad):
+#            mad = mad_g
+#        if (
+#            (m > mf_ls + n*mad)
+#            or (m < mf_ls - n*mad)
+#            or np.isnan(m)
+#            ):
+#            med_filled.iloc[i] = med_filled.iloc[i-1]
+    #med_filled != med
+#    plt.plot(med,'.',med_filled,'.r')
+#    plt.ylim([0,2000])
+#    plt.show()
+#    plt.plot(mad_array,'.',mad_filled,'.r')
+#    plt.show()
+#    print('Done!')
+    
+#    # fill in nans
+#    print('Interpolating nans')
+#    med_filled = interpolate_nans(med_filled)
+#    print('Done!')
+#
+#    
+#    # Create the exhaust boundary definition using MAD
+#    var_l = med_filled - num_deviations * mad_g
+#    var_u = med_filled + num_deviations * mad_g
+#    
+#    # Create the exhaust
+#    exhaust = pd.Series([(d0 > u) or (d0 < l) for d0,u,l in zip(d,var_u,var_l)],index=d.index)
 
     # fill in endpoints created by rolling window    
     exhaust = fill_window_endpoints(exhaust)
@@ -420,7 +446,17 @@ def exhaust_flag_rolling_var(df,
     df[column+'_var_l'] = var_l
     df[column+'_var_u'] = var_u
 
+    mad_array.to_hdf('mad_array_'+column+'.h5',key='mad')
+    print('Saved mad array of ' + column + ' to ' + os.getcwd())
 
+#    plt.plot(med,'.',med_filled,'.r')
+#    plt.show()
+#    
+#    pd.DataFrame.boxplot(mad_array)
+#    plt.ylim([0,50])
+#    plt.show()
+#    
+#    
 #    cn = df['cn10']
 #    ex = df['exhaust']
 #    cn_filt = cn.loc[~ex]
