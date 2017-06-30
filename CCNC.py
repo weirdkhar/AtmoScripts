@@ -1151,7 +1151,9 @@ def ss_split(data, split_by_supersaturation = True):
     if split_by_supersaturation:
         # Get a list of the supersaturations in the file:
         ss_list = data['Current SS'].unique()
-            
+        
+        nan_only = True
+        
         d={} #Initialise
         for ss in ss_list:
             if not np.isnan(ss):
@@ -1173,7 +1175,8 @@ def ss_split(data, split_by_supersaturation = True):
                         uncert = data[col]
                         uncert = uncert.dropna()
                         split_data[col] = uncert
-            else:
+                nan_only = False
+            elif nan_only:
                 # If the data only contains nan values after filtering
                 # return a dataframe with a single, indexed column full of NaN's
                 split_data = pd.DataFrame(np.nan,
