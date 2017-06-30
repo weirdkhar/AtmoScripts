@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 import datetime
 import os
+import time
+import math
 
 # A function to write a dataset to a NetCDF file
 # Developed utilising info from http://schubert.atmos.colostate.edu/~cslocum/netcdf_example.html
@@ -67,6 +69,180 @@ def log_filter(data,
         
     return data
 
+def find_variable_parameter(variable, parameter = 'units'):
+    '''
+    Finds the parameter of the variable being saved to netCDF format.
+    It will first explore a previously generated database, and if not present
+    in the database, it will ask the user for input and add that to the database.
+    '''
+    assert parameter in ['units','long_name'],"parameter not available, please check input"
+    
+    # Change directory to where this script is, assuming the dict file is here.
+    os.chdir(os.path.dirname(os.path.realpath(__file__)))
+    if os.path.isfile('variable_description.csv'):    
+        ind = pd.read_csv('variable_description.csv',header=0,index_col=0)
+        p = ind[parameter]
+        p_dict = p.to_dict()
+    else:
+        p_dict = {}
+
+    # Get parameter from previously loaded dictionary, otherwise prompt user for input
+    try:
+        value = p_dict[variable]
+        # if only part of the parameter information has been gathered from the user
+        if (math.isnan(value) or (value == np.nan)) and (ind.ix[variable].isnull().sum()==1):
+            no_info_in_file = True
+        else:
+            no_info_in_file = False
+    except:
+        no_info_in_file = True
+    
+    if no_info_in_file:
+        print("I cannot find the " + parameter + " for variable '" + 
+              variable + "'. Please enter is here:")
+        value = input()
+        confirm = 'n'
+        while confirm.lower() != 'y':
+            print("You have assigned '" + value + "' as the " + parameter +
+                  " for '" + variable + "'.")
+            print("Is this correct? This will be saved for future use. Type 'y'/'n'")
+            confirm = input()
+            if confirm.lower() == "n":
+                print("Please input the correct " + parameter + 
+                      " for '" + variable +"':")
+                value = input()
+    
+        # Add new variable to parameter dictionary
+        p_dict[variable]=value
+        
+        # Save to file
+        
+        df = pd.DataFrame.from_dict(p_dict, orient='index')
+        df.index.name='variable'
+        df.columns = [parameter]
+        
+        # Deal with a new value being added in one of the two columns
+        d_merge = pd.concat([df,ind],axis=1)
+        
+        
+        if variable=='units' and (
+                d_merge[parameter].iloc[:,0].isnull().sum() 
+                > 
+                d_merge[parameter].iloc[:,1].isnull().sum()
+                ):
+            d_merge = d_merge.ix[:,[1,2]]
+        else:
+            d_merge = d_merge.ix[:,[0,2]]
+        d_merge.index.name='variable'
+        d_merge.to_csv('variable_description.csv')
+        
+        print("'" + value +" has been assigned and saved as the " +parameter +
+              " for " + variable + "'")
+        
+    return value
+
+def h5_to_netcdf(h5_filename,
+                 h5_key,
+                 h5_dir,
+                                  
+                 long_name = None,
+                 units = None,
+                 
+                 ):
+    '''
+    Converts a h5 file to a netcdf file
+    '''
+    assert os.path.exists(h5_dir), 'h5 file does not exist! Please check input\
+    into h5_to_netcdf function.'
+    os.chdir(h5_dir)
+    # Load data from file
+    df = pd.read_hdf(h5_filename,key=h5_key)
+        
+    # Save to netcdf
+    df_to_netcdf(df, h5_filename, h5_dir)
+    
+    return
+
+def df_to_netcdf(df,
+                 nc_filename,
+                 nc_dir = None,
+                 
+                 global_title = None,
+                 global_description = None,
+                 author = 'Ruhi Humphries',
+                 global_institution = 'CSIRO',
+                 global_comment = None
+                 ):
+    '''
+    Saves a dataframe to netcdf format
+    '''
+    # Setup all the inputs before writing to file
+    fname = nc_filename.split('.')[0] + '.nc'
+    if nc_dir is not None:
+        os.chdir(nc_dir)
+
+    if global_title == None:
+        print('Please input a title (global attribute) of your dataset:')
+        global_title = input()
+    if global_description == None:
+        print('Please input a description (global attribute) of your dataset:')
+        global_description = input()
+    if global_institution == None:
+        print('Please input a institution (global attribute) of your dataset:')
+        global_institution= input()
+    if global_comment == None:
+        print('Please input a comment (global attribute) of your dataset:')
+        global_comment = input()
+    
+    
+    print("Saving data to netCDF format")
+    # Open a new NetCDF file in write ('w') mode
+    w_nc = nc.Dataset(fname,'w', format='NETCDF4')
+
+    # Create global attributes
+    w_nc.description = global_description
+    w_nc.history = "Created at " + time.ctime(time.time()) + " by " + author
+    w_nc.title = global_title
+    w_nc.institution = global_institution
+    w_nc.comment = global_comment
+ 
+    # Create a set of dimensions
+    w_nc.createDimension('time',None)
+
+    # Create time variable
+    times = w_nc.createVariable('time',np.float64,('time',))
+    times.units = 'hours since 2000-01-01 00:00:00'
+    times.calendar = 'gregorian'
+    times[:] = nc.date2num(df.index.tolist(),times.units,times.calendar)
+    
+    # Create other data variables
+    var_dict = {} #Initialise
+    for var in df.columns:
+        vtype = df[var].dtype
+        try:
+            var_dict[var] = w_nc.createVariable(var,vtype,('time',))
+        except TypeError:
+            if vtype == bool:
+                vtype = 'u1'
+            var_dict[var] = w_nc.createVariable(var,vtype,('time',))
+            
+        # Create attributes for the variables
+        var_dict[var].units = find_variable_parameter(var,'units')
+        var_dict[var].long_name = find_variable_parameter(var,'long_name')
+        var_dict[var].fill_value = np.nan
+        
+        # Add data to variables
+        var_dict[var][:] = df[var].as_matrix()
+        
+        #update user
+        print("Saving " + var + " to file")
+    
+    # close the new file
+    w_nc.close()  
+    
+    cwd = os.getcwd()
+    print('Successfully saved data as netcdf file in: ' + cwd + '\\' + fname)
+    return
 
 def write_netcdf(data,
                  # Variable attributes
