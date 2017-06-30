@@ -141,25 +141,32 @@ def find_variable_parameter(variable, parameter = 'units'):
         
     return value
 
-def h5_to_netcdf(h5_filename,
+def hdf_to_netcdf(h5_filename,
                  h5_key,
-                 h5_dir,
+                 h5_dir = None,
                                   
-                 long_name = None,
-                 units = None,
+                 global_title = None,
+                 global_description = None,
+                 author = 'Ruhi Humphries',
+                 global_institution = 'CSIRO',
+                 global_comment = None
                  
                  ):
     '''
     Converts a h5 file to a netcdf file
     '''
-    assert os.path.exists(h5_dir), 'h5 file does not exist! Please check input\
-    into h5_to_netcdf function.'
-    os.chdir(h5_dir)
+    if h5_dir is not None:
+        os.chdir(h5_dir)
     # Load data from file
     df = pd.read_hdf(h5_filename,key=h5_key)
         
     # Save to netcdf
-    df_to_netcdf(df, h5_filename, h5_dir)
+    df_to_netcdf(df, h5_filename, h5_dir,
+                 global_title = global_title,
+                 global_description = global_description,
+                 author = author,
+                 global_institution = global_institution,
+                 global_comment = global_comment)
     
     return
 
@@ -178,6 +185,8 @@ def df_to_netcdf(df,
     '''
     # Setup all the inputs before writing to file
     fname = nc_filename.split('.')[0] + '.nc'
+    if type(df) == pd.core.frame.Series:
+        df = df.to_frame()
     if nc_dir is not None:
         os.chdir(nc_dir)
 
