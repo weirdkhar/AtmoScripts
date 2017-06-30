@@ -34,7 +34,7 @@ if os.path.isfile('exhaust_filter_test_data.h5') & False:
     os.remove('exhaust_filter_test_data.h5')
 
 startdate = '2016-04-25'
-enddate = '2016-06-08'
+enddate = '2016-06-30'
 
 #startdate = '2016-05-07'
 #enddate = '2016-05-09'
