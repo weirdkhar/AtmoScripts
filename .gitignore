@@ -50,3 +50,8 @@ Temporary Items
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Compiling files and folders
+*.spec
+build
+dist
