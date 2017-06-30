@@ -194,7 +194,7 @@ def df_to_netcdf(df,
         print('Please input a comment (global attribute) of your dataset:')
         global_comment = input()
     
-    print("Creating netCDF file")
+    print("Creating netCDF file: " + fname)
     # Open a new NetCDF file in write ('w') mode
     w_nc = nc.Dataset(fname,'w', format='NETCDF4')
 
