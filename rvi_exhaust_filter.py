@@ -145,10 +145,10 @@ def save_exhaust_id(df,
 
         # Create global attributes
         w_nc.description = "RV Investigator exhaust identification using BC, CN and CO data"
-        w_nc.history = "Created " + time.ctime(time.time())
-        w_nc.source = "Ruhi Humphries"
+        w_nc.history = "Created at " + time.ctime(time.time()) + " by Ruhi Humphries"
+#        w_nc.source = "Ruhi Humphries"
  
-       # Create a set of dimensions
+        # Create a set of dimensions
         w_nc.createDimension('time',None)
 
         # Create a variables
