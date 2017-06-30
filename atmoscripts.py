@@ -139,27 +139,6 @@ def find_variable_parameter(variable, parameter = 'units'):
     else:
         print("Retrieved " + parameter + " for " + variable + " from file.")
         
-#        # Deal with a new value being added in one of the two columns
-#        try:
-#            d_merge = pd.concat([df,ind],axis=1)
-#        except:
-#            d_merge = df
-#        
-#        
-#        d1 = d_merge[parameter]
-#        d2 = d_merge
-#        
-#        if parameter=='units' and (
-#                d_merge[parameter].iloc[:,0].isnull().sum() 
-#                > 
-#                d_merge[parameter].iloc[:,1].isnull().sum()
-#                ):
-#            d_merge = d_merge.ix[:,[1,2]]
-#        else:
-#            d_merge = d_merge.ix[:,[0,2]]
-        
-        
-        
     return value
 
 def h5_to_netcdf(h5_filename,
@@ -215,8 +194,7 @@ def df_to_netcdf(df,
         print('Please input a comment (global attribute) of your dataset:')
         global_comment = input()
     
-    
-    print("Saving data to netCDF format")
+    print("Creating netCDF file")
     # Open a new NetCDF file in write ('w') mode
     w_nc = nc.Dataset(fname,'w', format='NETCDF4')
 
@@ -231,6 +209,7 @@ def df_to_netcdf(df,
     w_nc.createDimension('time',None)
 
     # Create time variable
+    print("Creating time variable")
     times = w_nc.createVariable('time',np.float64,('time',))
     times.units = 'hours since 2000-01-01 00:00:00'
     times.calendar = 'gregorian'
@@ -252,12 +231,12 @@ def df_to_netcdf(df,
         var_dict[var].long_name = find_variable_parameter(var,'long_name')
         var_dict[var].fill_value = np.nan
         
+        #update user
+        print("Saving " + var + " to netCDF file")
+        
         # Add data to variables
         var_dict[var][:] = df[var].as_matrix()
         
-        #update user
-        print("Saving " + var + " to netCDF file")
-    
     # close the new file
     w_nc.close()  
     
