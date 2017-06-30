@@ -90,9 +90,12 @@ def find_variable_parameter(variable, parameter = 'units'):
     try:
         value = p_dict[variable]
         # if only part of the parameter information has been gathered from the user
-        if (math.isnan(value) or (value == np.nan)) and (ind.ix[variable].isnull().sum()==1):
-            no_info_in_file = True
-        else:
+        try:
+            if (math.isnan(value) or (value == np.nan)) and (ind.ix[variable].isnull().sum()==1):
+                no_info_in_file = True
+            else:
+                no_info_in_file = False
+        except TypeError:
             no_info_in_file = False
     except:
         no_info_in_file = True
@@ -117,27 +120,45 @@ def find_variable_parameter(variable, parameter = 'units'):
         
         # Save to file
         
-        df = pd.DataFrame.from_dict(p_dict, orient='index')
+        # Get new parameter array
+        df1 = pd.DataFrame.from_dict(p_dict, orient='index')
+        df1.index.name='variable'
+        df1.columns = [parameter]
+        # Get old parameter array
+        df2 = ind[[[x for x in ['units','long_name'] if x != parameter][0]]]
+        # Join the two
+        df = df1.join(df2)
+        # ensure order of columns remains 
+        df = df[['units','long_name']] 
         df.index.name='variable'
-        df.columns = [parameter]
+        df = df.reindex(sorted(df.index, key=lambda x: x.lower()))
+        df.to_csv('variable_description.csv')
         
-        # Deal with a new value being added in one of the two columns
-        d_merge = pd.concat([df,ind],axis=1)
+        print("'" + value +"' has been assigned and saved as the " + 
+              parameter + " for '" + variable + "'")
+    else:
+        print("Retrieved " + parameter + " for " + variable + " from file.")
+        
+#        # Deal with a new value being added in one of the two columns
+#        try:
+#            d_merge = pd.concat([df,ind],axis=1)
+#        except:
+#            d_merge = df
+#        
+#        
+#        d1 = d_merge[parameter]
+#        d2 = d_merge
+#        
+#        if parameter=='units' and (
+#                d_merge[parameter].iloc[:,0].isnull().sum() 
+#                > 
+#                d_merge[parameter].iloc[:,1].isnull().sum()
+#                ):
+#            d_merge = d_merge.ix[:,[1,2]]
+#        else:
+#            d_merge = d_merge.ix[:,[0,2]]
         
         
-        if variable=='units' and (
-                d_merge[parameter].iloc[:,0].isnull().sum() 
-                > 
-                d_merge[parameter].iloc[:,1].isnull().sum()
-                ):
-            d_merge = d_merge.ix[:,[1,2]]
-        else:
-            d_merge = d_merge.ix[:,[0,2]]
-        d_merge.index.name='variable'
-        d_merge.to_csv('variable_description.csv')
-        
-        print("'" + value +" has been assigned and saved as the " +parameter +
-              " for " + variable + "'")
         
     return value
 
@@ -235,7 +256,7 @@ def df_to_netcdf(df,
         var_dict[var][:] = df[var].as_matrix()
         
         #update user
-        print("Saving " + var + " to file")
+        print("Saving " + var + " to netCDF file")
     
     # close the new file
     w_nc.close()  
