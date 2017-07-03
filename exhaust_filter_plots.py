@@ -22,6 +22,8 @@ plt_path = 'r:\\RV_Investigator\\Exhaust\\'
 saveorshowplot = 'save'
 #dfe,dfcn,dfco,dfbc,dfe_f,dfcn_f,dfco_f,dfbc_f
 def main():
+    boxplot_hist_madarrays('cn10')
+    boxplot_hist_madarrays('co')
     plt_ts_cn10('show')
     boxplot_madarrays(saveorshowplot)
     plt_compare_wdws(saveorshowplot)
@@ -42,6 +44,106 @@ def main():
     print('Done!')
     return
 
+def boxplot_hist_madarrays(data = 'cn10', saveorshowplot='save'):
+    # https://matplotlib.org/examples/pylab_examples/broken_axis.html
+    os.chdir(master_path)
+    if data.lower() in ['cn','cn10']:
+        df = pd.read_hdf('mad_array_cn10.h5',key='mad')
+        df = df.dropna()
+        ylabel = 'Number Concentration ($cm^{-3}$)'
+        ylim_l = [0,25]
+        ylim_u = [25, 3*10**5]
+        xtick_label = '$CN_{10}$'
+        log_bins = np.logspace(0, 6, 1000, endpoint=True)
+    elif data.lower() == 'co':
+        df = pd.read_hdf('mad_array_co.h5',key='mad')
+        df = df.dropna()
+        ylabel = 'Mixing ratio ($ppb$)'
+        ylim_l = [0,0.35]
+        ylim_u = [0.35, 30]
+        xtick_label = '$CO$'
+        log_bins = np.logspace(-2, 2, 1000, endpoint=True)
+        
+    
+
+    f, ((ax1, ax3), (ax2, ax4)) = plt.subplots(2, 2, sharex='col',figsize=(6,7))
+    
+    f.subplots_adjust(hspace=0.03)
+    
+    plt.suptitle('Rolling Median Absolute Deviation \n' + xtick_label)
+    f.text(0.02,0.5,ylabel,va='center',rotation='vertical')
+    f.text(0.93,0.5,ylabel,va='center',rotation='vertical')
+    
+    ax1.boxplot(df,0,'xb', widths=(0.5))
+    ax2.boxplot(df,0,'xb', widths=(0.5))
+    
+    ax1.set_yscale('log')
+    ax1.set_ylim(ylim_u)
+    ax2.set_ylim(ylim_l)
+    
+    plt.setp(ax2,xticklabels=[xtick_label])
+    
+    
+    # hide the spines between ax and ax2
+    ax1.spines['bottom'].set_visible(False)
+    ax2.spines['top'].set_visible(False)
+    ax1.xaxis.tick_top()
+    ax1.tick_params(labeltop='off')  # don't put tick labels at the top
+    ax2.xaxis.tick_bottom()
+    
+    d = .015  # how big to make the diagonal lines in axes coordinates
+    # arguments to pass to plot, just so we don't keep repeating them
+    kwargs = dict(transform=ax1.transAxes, color='k', clip_on=False)
+    ax1.plot((-d, +d), (-d, +d), **kwargs)        # top-left diagonal
+    ax1.plot((1 - d, 1 + d), (-d, +d), **kwargs)  # top-right diagonal
+    
+    kwargs.update(transform=ax2.transAxes)  # switch to the bottom axes
+    ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # bottom-left diagonal
+    ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  # bottom-right diagonal
+    
+    
+    
+    ### Histogram
+    
+    ax3.hist(df, bins=log_bins, orientation=u'horizontal',color='black')
+    ax4.hist(df, bins=log_bins, orientation=u'horizontal',color='black')
+    
+    ax3.set_xscale('log')
+    ax3.set_yscale('log')
+    ax3.set_ylim(ylim_u)
+    
+    ax4.set_xscale('log')
+    ax4.set_ylim(ylim_l)
+    
+    ax3.tick_params(labelleft='off')
+    ax4.tick_params(labelleft='off')
+    
+#    ax3.yaxis.tick_right()
+#    ax4.yaxis.tick_right()
+
+    ax4.set_xlabel('Frequency')
+    
+    
+    # hide the spines between ax and ax2
+    ax3.spines['bottom'].set_visible(False)
+    ax4.spines['top'].set_visible(False)
+    ax3.xaxis.tick_top()
+    ax3.tick_params(labeltop='off')  # don't put tick labels at the top
+    ax4.xaxis.tick_bottom()
+    
+    # arguments to pass to plot, just so we don't keep repeating them
+    kwargs = dict(transform=ax3.transAxes, color='k', clip_on=False)
+    ax3.plot((-d, +d), (-d, +d), **kwargs)        # top-left diagonal
+    ax3.plot((1 - d, 1 + d), (-d, +d), **kwargs)  # top-right diagonal
+    
+    kwargs.update(transform=ax4.transAxes)  # switch to the bottom axes
+    ax4.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # bottom-left diagonal
+    ax4.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  # bottom-right diagonal
+    
+    handle_plt(plt,saveorshowplot,plt_path,outputfilename='boxplot_madarray')
+    
+    return
+
 def boxplot_madarrays(saveorshowplot='save'):
     # https://matplotlib.org/examples/pylab_examples/broken_axis.html
     os.chdir(master_path)
@@ -51,7 +153,7 @@ def boxplot_madarrays(saveorshowplot='save'):
 
     f, ((ax1, ax3), (ax2, ax4)) = plt.subplots(2, 2, sharex='col')
     
-    f.subplots_adjust(hspace=0.1)
+    f.subplots_adjust(hspace=0.)
     
     plt.suptitle('Tukey plot \n Rolling Median Absolute Deviation')
     f.text(0.04,0.5,'Number Concentration ($cm^{-3}$)',va='center',rotation='vertical')
@@ -115,6 +217,7 @@ def boxplot_madarrays(saveorshowplot='save'):
     handle_plt(plt,saveorshowplot,plt_path,outputfilename='boxplot_madarray')
     
     return
+
 
 def subplt_wd(column='cn10',saveorshowplot='save'):
     plt.figure(figsize=(8,11))
@@ -375,7 +478,7 @@ def load():
     
     return dfe,dfcn,dfco,dfbc,dfcomb,dfe_f,dfcn_f,dfco_f,dfbc_f,dfcomb_f
 
-dfe,dfcn,dfco,dfbc,dfcomb,dfe_f,dfcn_f,dfco_f,dfbc_f,dfcomb_f = load()
+#dfe,dfcn,dfco,dfbc,dfcomb,dfe_f,dfcn_f,dfco_f,dfbc_f,dfcomb_f = load()
 
 # if this script is run at the command line, run the main script   
 if __name__ == '__main__': 
