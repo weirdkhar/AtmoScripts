@@ -4,6 +4,7 @@ AirTemp_stbd,degC,air temperature from starboard sensor
 atmPress,mbar,atmospheric pressure
 BC,ug/m^3,black carbon concentration
 ccn,cm-3,cloud condensation nuclei number concentration
+ccn_0.5504,cm-3,cloud condensation number concentration measured at 0.5504% supersaturation
 ccn_0.5504_avg,cm-3,average CCN number concentration measured at 0.5504% supersaturation over the given time period
 ccn_0.5504_count,counts,number of valid values used to calculate statistics of CCN number concentration measured at 0.5504% supersaturation over the given time period
 ccn_0.5504_mad,cm-3,median absolute deviation of CCN number concentration measured at 0.5504% supersaturation over the given time period
