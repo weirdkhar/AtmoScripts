@@ -4,6 +4,9 @@ Created on Wed Jun  7 14:09:13 2017
 
 @author: hum094
 """
+saveorshowplot = 'save'
+load_all_data = False
+
 
 import sys
 sys.path.append('h:\\code\\atmoscripts\\')
@@ -15,11 +18,15 @@ import atmosplots as aplt
 from matplotlib.backends.backend_pdf import PdfPages
 from atmosplots import saveorshowplot as handle_plt
 
-master_path = 'h:\\code\\AtmoScripts\\'
-exhaust_path = 'r:\\RV_Investigator\\'
-plt_path = 'r:\\RV_Investigator\\Exhaust\\'
+master_path_svr = 'h:\\code\\AtmoScripts\\'
+master_path_lcl = 'c:\\OneDrive\\RuhiFiles\\Research\\ProgramFiles\\git\\AtmoScripts\\'
+exhaust_path_svr = 'r:\\RV_Investigator\\'
+exhaust_path_lcl = 'c:\\Temp\\ExhaustData\\'
+plt_path_svr = 'r:\\RV_Investigator\\Exhaust\\'
+plt_path_lcl = 'c:\\OneDrive\\RuhiFiles\\Research\\Writing\\Writing_RVI\\AMT_RVI_ExhaustFilter\\Plots\\'
 
-saveorshowplot = 'save'
+
+
 #dfe,dfcn,dfco,dfbc,dfe_f,dfcn_f,dfco_f,dfbc_f
 def main():
     boxplot_hist_madarrays('cn10')
@@ -433,10 +440,14 @@ def plt_compare_wdws(saveorshowplot='save'):
     return
 
 def load():
-    os.chdir(exhaust_path)
+    
     startdate = '2016-04-25 00:00:00'
     enddate = '2016-06-09 00:00:00'
     
+    os.chdir(exhaust_path)
+    
+
+            
     print('Loading data from file - this may take a few seconds. Please wait...')
     
     dfe = pd.read_hdf('in2016_v03_dfe.h5',key='data')[startdate:enddate]
@@ -478,7 +489,23 @@ def load():
     
     return dfe,dfcn,dfco,dfbc,dfcomb,dfe_f,dfcn_f,dfco_f,dfbc_f,dfcomb_f
 
-#dfe,dfcn,dfco,dfbc,dfcomb,dfe_f,dfcn_f,dfco_f,dfbc_f,dfcomb_f = load()
+
+
+if os.path.isdir(master_path_svr):
+    master_path = master_path_svr 
+    exhaust_path = exhaust_path_svr
+    plt_path = plt_path_svr 
+
+elif os.path.isdir(master_path_lcl):
+    master_path = master_path_lcl
+    exhaust_path = exhaust_path_lcl
+    plt_path = plt_path_lcl
+
+else:
+    assert False, "Can't find data! Please check path"
+
+if load_all_data:
+    dfe,dfcn,dfco,dfbc,dfcomb,dfe_f,dfcn_f,dfco_f,dfbc_f,dfcomb_f = load()
 
 # if this script is run at the command line, run the main script   
 if __name__ == '__main__': 
