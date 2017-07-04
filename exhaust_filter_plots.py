@@ -14,6 +14,7 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.lines as lines
 import atmosplots as aplt
 from matplotlib.backends.backend_pdf import PdfPages
 from atmosplots import saveorshowplot as handle_plt
@@ -29,8 +30,8 @@ plt_path_lcl = 'c:\\OneDrive\\RuhiFiles\\Research\\Writing\\Writing_RVI\\AMT_RVI
 
 #dfe,dfcn,dfco,dfbc,dfe_f,dfcn_f,dfco_f,dfbc_f
 def main():
-    boxplot_hist_madarrays('cn10')
-    boxplot_hist_madarrays('co')
+    boxplot_hist_madarrays('cn10',saveorshowplot)
+    boxplot_hist_madarrays('co',saveorshowplot)
     plt_ts_cn10('show')
     boxplot_madarrays(saveorshowplot)
     plt_compare_wdws(saveorshowplot)
@@ -53,7 +54,7 @@ def main():
 
 def boxplot_hist_madarrays(data = 'cn10', saveorshowplot='save'):
     # https://matplotlib.org/examples/pylab_examples/broken_axis.html
-    os.chdir(master_path)
+    os.chdir(exhaust_path)
     if data.lower() in ['cn','cn10']:
         df = pd.read_hdf('mad_array_cn10.h5',key='mad')
         df = df.dropna()
@@ -75,7 +76,59 @@ def boxplot_hist_madarrays(data = 'cn10', saveorshowplot='save'):
 
     f, ((ax1, ax3), (ax2, ax4)) = plt.subplots(2, 2, sharex='col',figsize=(6,7))
     
-    f.subplots_adjust(hspace=0.03)
+    # Fix figure so that the axis changes from linear to log scale
+    # Hide part of the y axes between the two plots
+    d = 0.005 #diagonal size
+    f.subplots_adjust(hspace=0.0)
+    L1 = lines.Line2D([0.125, 0.125], [0.48+2*d, 0.52-2*d], lw = 10,
+                     transform=f.transFigure, figure=f, color='white')
+    L2 = lines.Line2D([0.477, 0.477], [0.48+2*d, 0.52-2*d], lw = 10,
+                     transform=f.transFigure, figure=f, color='white')
+    L3 = lines.Line2D([0.548, 0.548], [0.48+2*d, 0.52-2*d], #lw = 10,
+                     transform=f.transFigure, figure=f, color='white')
+    L4 = lines.Line2D([0.900, 0.900], [0.48+2*d, 0.52-2*d], lw = 10,
+                     transform=f.transFigure, figure=f, color='white')
+    
+    # Add diagonal lines showing the break
+    
+    col = 'k'
+    D1L = lines.Line2D([0.125-d, 0.125+d], [0.52-d, 0.52+d], 
+                     transform=f.transFigure, figure=f, color=col)
+    D1R = lines.Line2D([0.477-d, 0.477+d], [0.52-d, 0.52+d], 
+                     transform=f.transFigure, figure=f, color=col)
+    D2L = lines.Line2D([0.125-d, 0.125+d], [0.48-d, 0.48+d], 
+                     transform=f.transFigure, figure=f, color=col)
+    D2R = lines.Line2D([0.477-d, 0.477+d], [0.48-d, 0.48+d], 
+                     transform=f.transFigure, figure=f, color=col)
+    D3L = lines.Line2D([0.548-d, 0.548+d], [0.52-d, 0.52+d], 
+                     transform=f.transFigure, figure=f, color=col)
+    D3R = lines.Line2D([0.900-d, 0.900+d], [0.52-d, 0.52+d], 
+                     transform=f.transFigure, figure=f, color=col)
+    D4L = lines.Line2D([0.548-d, 0.548+d], [0.48-d, 0.48+d], 
+                     transform=f.transFigure, figure=f, color=col)
+    D4R = lines.Line2D([0.900-d, 0.900+d], [0.48-d, 0.48+d], 
+                     transform=f.transFigure, figure=f, color=col) 
+    f.lines.extend([L1,L2,L4,
+                    D1L,D1R,D2L,D2R,
+                    D3L,D3R,D4L,D4R])
+    
+    # hide the x axis spines between ax1 and ax2
+    ax1.spines['bottom'].set_visible(False)
+    ax2.spines['top'].set_visible(False)
+    ax1.xaxis.tick_top()
+    ax1.tick_params(labeltop='off')  # don't put tick labels at the top
+    ax2.xaxis.tick_bottom()
+    
+    # hide the x axis spines between ax3 and ax4
+    ax3.spines['bottom'].set_visible(False)
+    ax4.spines['top'].set_visible(False)
+    ax3.xaxis.tick_top()
+    ax3.tick_params(labeltop='off')  # don't put tick labels at the top
+    ax4.xaxis.tick_bottom()
+    
+    
+    
+    ###  Box and whisker plot
     
     plt.suptitle('Rolling Median Absolute Deviation \n' + xtick_label)
     f.text(0.02,0.5,ylabel,va='center',rotation='vertical')
@@ -89,24 +142,6 @@ def boxplot_hist_madarrays(data = 'cn10', saveorshowplot='save'):
     ax2.set_ylim(ylim_l)
     
     plt.setp(ax2,xticklabels=[xtick_label])
-    
-    
-    # hide the spines between ax and ax2
-    ax1.spines['bottom'].set_visible(False)
-    ax2.spines['top'].set_visible(False)
-    ax1.xaxis.tick_top()
-    ax1.tick_params(labeltop='off')  # don't put tick labels at the top
-    ax2.xaxis.tick_bottom()
-    
-    d = .015  # how big to make the diagonal lines in axes coordinates
-    # arguments to pass to plot, just so we don't keep repeating them
-    kwargs = dict(transform=ax1.transAxes, color='k', clip_on=False)
-    ax1.plot((-d, +d), (-d, +d), **kwargs)        # top-left diagonal
-    ax1.plot((1 - d, 1 + d), (-d, +d), **kwargs)  # top-right diagonal
-    
-    kwargs.update(transform=ax2.transAxes)  # switch to the bottom axes
-    ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # bottom-left diagonal
-    ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  # bottom-right diagonal
     
     
     
@@ -125,29 +160,12 @@ def boxplot_hist_madarrays(data = 'cn10', saveorshowplot='save'):
     ax3.tick_params(labelleft='off')
     ax4.tick_params(labelleft='off')
     
-#    ax3.yaxis.tick_right()
-#    ax4.yaxis.tick_right()
-
     ax4.set_xlabel('Frequency')
     
     
-    # hide the spines between ax and ax2
-    ax3.spines['bottom'].set_visible(False)
-    ax4.spines['top'].set_visible(False)
-    ax3.xaxis.tick_top()
-    ax3.tick_params(labeltop='off')  # don't put tick labels at the top
-    ax4.xaxis.tick_bottom()
-    
-    # arguments to pass to plot, just so we don't keep repeating them
-    kwargs = dict(transform=ax3.transAxes, color='k', clip_on=False)
-    ax3.plot((-d, +d), (-d, +d), **kwargs)        # top-left diagonal
-    ax3.plot((1 - d, 1 + d), (-d, +d), **kwargs)  # top-right diagonal
-    
-    kwargs.update(transform=ax4.transAxes)  # switch to the bottom axes
-    ax4.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # bottom-left diagonal
-    ax4.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  # bottom-right diagonal
-    
-    handle_plt(plt,saveorshowplot,plt_path,outputfilename='boxplot_madarray')
+    # Show or save
+    handle_plt(plt,saveorshowplot,plt_path,
+               outputfilename='boxplot_madarray_' + data.lower())
     
     return
 
@@ -490,16 +508,14 @@ def load():
     return dfe,dfcn,dfco,dfbc,dfcomb,dfe_f,dfcn_f,dfco_f,dfbc_f,dfcomb_f
 
 
-
-if os.path.isdir(master_path_svr):
-    master_path = master_path_svr 
-    exhaust_path = exhaust_path_svr
-    plt_path = plt_path_svr 
-
-elif os.path.isdir(master_path_lcl):
+if os.path.isdir(master_path_lcl):
     master_path = master_path_lcl
     exhaust_path = exhaust_path_lcl
     plt_path = plt_path_lcl
+elif os.path.isdir(master_path_svr):
+    master_path = master_path_svr 
+    exhaust_path = exhaust_path_svr
+    plt_path = plt_path_svr 
 
 else:
     assert False, "Can't find data! Please check path"
