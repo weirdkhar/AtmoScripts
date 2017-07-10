@@ -26,7 +26,7 @@ local_path_ccn = 's:\\in2016_v03\\ccnc\\'
 
 master_path = 'h:\\code\\AtmoScripts\\'
 
-exhaust_path = 'r:\\RV_Investigator\\'
+exhaust_path = 'r:\\RV_Investigator\\Exhaust\\Data\\'
 
 
 os.chdir(master_path)
@@ -61,10 +61,10 @@ def main(force_reload_exhaust = False,
          filter_window = 60*10,
          
          co_stat_window = 60*5,
-         co_num_devs = 3,
+         co_num_devs = 4,
         
          cn_stat_window = 60*5,
-         cn_num_devs = 3,
+         cn_num_devs = 4,
          
          bc_lim = 0.07001):
     
