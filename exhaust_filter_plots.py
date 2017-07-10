@@ -4,9 +4,9 @@ Created on Wed Jun  7 14:09:13 2017
 
 @author: hum094
 """
-saveorshowplot = 'save'
+saveorshowplot = 'show'
 load_all_data = True
-load_partial = True
+load_partial = False
 
 
 import sys
@@ -24,7 +24,7 @@ from atmosplots import saveorshowplot as handle_plt
 
 master_path_svr = 'h:\\code\\AtmoScripts\\'
 master_path_lcl = 'c:\\OneDrive\\RuhiFiles\\Research\\ProgramFiles\\git\\AtmoScripts\\'
-exhaust_path_svr = 'r:\\RV_Investigator\\'
+exhaust_path_svr = 'r:\\RV_Investigator\\Exhaust\\Data\\'
 exhaust_path_lcl = 'c:\\Temp\\ExhaustData\\'
 plt_path_svr = 'r:\\RV_Investigator\\Exhaust\\'
 plt_path_lcl = 'c:\\OneDrive\\RuhiFiles\\Research\\Writing\\Writing_RVI\\AMT_RVI_ExhaustFilter\\Plots\\'
@@ -33,6 +33,11 @@ plt_path_lcl = 'c:\\OneDrive\\RuhiFiles\\Research\\Writing\\Writing_RVI\\AMT_RVI
 
 #dfe,dfcn,dfco,dfbc,dfe_f,dfcn_f,dfco_f,dfbc_f
 def main():
+    plt_ts_cn10_zoom(saveorshowplot)
+    subplt_wd('cn10',False,saveorshowplot)
+    subplt_wd('CO',False,saveorshowplot)
+    subplt_wd('ccn_0.5504',False,saveorshowplot)
+    
     boxplot_hist_madarrays('cn10',saveorshowplot)
     boxplot_hist_madarrays('co',saveorshowplot)
     plt_ts_all6subplots(saveorshowplot)
@@ -44,8 +49,7 @@ def main():
 #    boxplot_madarrays(saveorshowplot)
     plt_compare_wdws(False,saveorshowplot)
     plt_compare_wdws(True,saveorshowplot)
-    subplt_wd('cn10',saveorshowplot)
-    subplt_wd('CO',saveorshowplot)
+    
     
     plt_ts_cn10(saveorshowplot)
     plt_ts_cn10_f(saveorshowplot)
@@ -424,44 +428,56 @@ def boxplot_madarrays(saveorshowplot='save'):
     return
 
 
-def subplt_wd(column='cn10',saveorshowplot='save'):
-    plt.figure(figsize=(8,11))
+def subplt_wd(column='cn10',logscale = False, saveorshowplot='save'):
     
-    ax = plt.subplot(5,1,1)
-    plt.plot(dfe['WindDirRel_vmean'],dfe[column],'.')
-    plt.title('Wind direction vs ' + column + ' - raw data')
-    plt.ylabel('Number Conc ($cm^{-3}$)')
-    plt.xlim([0,360])
-    ax.xaxis.set_visible(False)
+    f, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(6,1,figsize=(8,11))
+        
+    ax1.plot(dfe['WindDirRel_vmean'],dfe[column],'.k', markersize=2)
+    ax1.set_title('Raw ' + column + ' data')
+    ax1.set_xlim([0,360])
+    ax1.xaxis.set_visible(False)
     
-    ax = plt.subplot(5,1,2)
-    plt.plot(dfbc_f['WindDirRel_vmean'],dfbc_f[column],'.')
-    plt.title('Wind direction vs ' + column + ' - BC filter')
-    plt.ylabel('Number Conc ($cm^{-3}$)')
-    plt.xlim([0,360])
-    ax.xaxis.set_visible(False)
+    ax2.plot(dfbc_f['WindDirRel_vmean'],dfbc_f[column],'.k', markersize=2)
+    ax2.set_title('BC only filter')
+    ax2.set_xlim([0,360])
+    ax2.xaxis.set_visible(False)
     
-    ax = plt.subplot(5,1,3)
-    plt.plot(dfco_f['WindDirRel_vmean'],dfco_f[column],'.')
-    plt.title('Wind direction vs ' + column + ' - CO filter')
-    plt.ylabel('Number Conc ($cm^{-3}$)')
-    plt.xlim([0,360])
-    ax.xaxis.set_visible(False)
+    ax3.plot(dfco_f['WindDirRel_vmean'],dfco_f[column],'.k', markersize=2)
+    ax3.set_title('CO only filter')
+    ax3.set_xlim([0,360])
+    ax3.xaxis.set_visible(False)
     
-    ax = plt.subplot(5,1,4)
-    plt.plot(dfcn_f['WindDirRel_vmean'],dfcn_f[column],'.')
-    plt.title('Wind direction vs ' + column + ' - CN filter')
-    plt.ylabel('Number Conc ($cm^{-3}$)')
-    plt.xlabel('Relative Wind Direction (degrees)')
-    plt.xlim([0,360])
-    ax.xaxis.set_visible(False)
+    ax4.plot(dfcn_f['WindDirRel_vmean'],dfcn_f[column],'.k', markersize=2)
+    ax4.set_title('CN only filter')
+    ax4.set_xlim([0,360])
+    ax4.xaxis.set_visible(False)
     
-    ax = plt.subplot(5,1,5)
-    plt.plot(dfe_f['WindDirRel_vmean'],dfe_f[column],'.')
-    plt.title('Wind direction vs ' + column + ' - full filter')
-    plt.ylabel('Number Conc ($cm^{-3}$)')
-    plt.xlim([0,360])
-    ax.xaxis.set_visible(False)
+    ax5.plot(dfcomb_f['WindDirRel_vmean'],dfcomb_f[column],'.k', markersize=2)
+    ax5.set_title('CO + BC + CN (no window) filter')
+    ax5.set_xlim([0,360])
+    ax5.xaxis.set_visible(False)
+    
+    ax6.plot(dfe_f['WindDirRel_vmean'],dfe_f[column],'.k', markersize=2)
+    ax6.set_title('Full filter')
+    ax6.set_xlim([0,360])
+    ax6.xaxis.set_visible(True)
+    ax6.set_xlabel('Relative Wind Direction ($^o$)')
+    
+    if column.lower() == 'co':
+        units = 'Mixing Ratio (ppb)'
+    else:
+        units = 'Number Concentration ($cm^{-3}$)'
+    
+    f.text(0.02, 0.5,units,va='center', rotation='vertical')
+    
+    if 'ccn' in column:
+        for ax in [ax1,ax2,ax3,ax4,ax5]:
+            ax.set_ylim([0,6000])
+            ax.yaxis.set_major_locator(mticker.FixedLocator([0, 2000, 4000, 6000]))
+    
+    if logscale:
+        for ax in [ax1,ax2,ax3,ax4,ax5,ax6]:
+            ax.set_yscale('log')
     
     handle_plt(plt,saveorshowplot,plt_path,outputfilename='subplt_wd_'+column)
     return
@@ -512,6 +528,45 @@ def plt_ts_cn10(saveorshowplot='save'):
     handle_plt(plt,saveorshowplot,plt_path,outputfilename='ts_cn10_raw')
     return
 
+def plt_ts_cn10_zoom(saveorshowplot='save'):
+    startdate = '2016-05-28 00:00:00'
+    enddate = '2016-06-02 00:00:01'
+    dfe1 = dfe[startdate:enddate]
+    dfe_f1 = dfe_f[startdate:enddate]
+    
+    plt.figure(figsize=(11,8))
+    
+    plt.plot(dfe1['cn10'],'.b',alpha=0.2)
+    plt.plot(dfe_f1['cn10'],'.r')
+    
+    plt.ylabel('Number Conc ($cm^{-3}$)')
+    plt.ylim([0,2000])
+    
+    #plt.title('cn10 timeseries - full filt with cn10 filter parameters')
+    
+    handle_plt(plt,saveorshowplot,plt_path,outputfilename='ts_cn10_full_filt_zoom')
+    return
+
+def plt_ts_ccn_zoom(saveorshowplot='save'):
+    startdate = '2016-05-28 00:00:00'
+    enddate = '2016-06-02 00:00:01'
+    dfe1 = dfe[startdate:enddate]
+    dfe_f1 = dfe_f[startdate:enddate]
+    
+    plt.figure(figsize=(11,8))
+    
+    plt.plot(dfe1['ccn_0.5504'],'.b',alpha=0.2)
+    plt.plot(dfe_f1['ccn_0.5504'],'.r')
+    
+    plt.ylabel('Number Conc ($cm^{-3}$)')
+    plt.ylim([0,1000])
+    
+    #plt.title('cn10 timeseries - full filt with cn10 filter parameters')
+    
+    handle_plt(plt,saveorshowplot,plt_path,outputfilename='ts_cn10_full_filt_zoom')
+    return
+
+
 def plt_ts_cn10_f(pdf=None,saveorshowplot='save'):
     plt.figure(figsize=(11,8))
     
@@ -523,7 +578,7 @@ def plt_ts_cn10_f(pdf=None,saveorshowplot='save'):
     handle_plt(plt,saveorshowplot,plt_path,outputfilename='ts_cn10_full_filter')
     return
     
-    
+
 def plt_ts_co(saveorshowplot='save'):
     plt.figure(figsize=(11,8))
     
@@ -664,10 +719,28 @@ def load():
             
     print('Loading data from file - this may take a few seconds. Please wait...')
     
-    dfe = pd.read_hdf('in2016_v03_dfe.h5',key='data')[startdate:enddate]
-    dfcn = pd.read_hdf('in2016_v03_dfcn.h5',key='data')[startdate:enddate]
-    dfco = pd.read_hdf('in2016_v03_dfco.h5',key='data')[startdate:enddate]
-    dfbc = pd.read_hdf('in2016_v03_dfbc.h5',key='data')[startdate:enddate]
+    if os.path.isfile('in2016_v03_dfe_publication.h5'):
+        ext = '_publication'
+    else:
+        ext = ''
+    
+    dfe = pd.read_hdf('in2016_v03_dfe'+ext+'.h5',key='data')[startdate:enddate]
+    dfcn = pd.read_hdf('in2016_v03_dfcn'+ext+'.h5',key='data')[startdate:enddate]
+    dfco = pd.read_hdf('in2016_v03_dfco'+ext+'.h5',key='data')[startdate:enddate]
+    dfbc = pd.read_hdf('in2016_v03_dfbc'+ext+'.h5',key='data')[startdate:enddate]
+    
+    if 'ccn_0.5504' not in dfe.columns:
+        ccn = pd.read_hdf('ccn_1s_in2016_v03.h5',key='ccn')
+    
+        dfe = merge_new_ccn(dfe,ccn)
+        dfcn = merge_new_ccn(dfcn,ccn)
+        dfco = merge_new_ccn(dfco,ccn)
+        dfbc = merge_new_ccn(dfbc,ccn)
+        
+        dfe.to_hdf('in2016_v03_dfe_publication.h5',key='data')
+        dfcn.to_hdf('in2016_v03_dfcn_publication.h5',key='data')
+        dfco.to_hdf('in2016_v03_dfco_publication.h5',key='data')
+        dfbc.to_hdf('in2016_v03_dfbc_publication.h5',key='data')
     
     
     # Create a combined filter without the filtering around the window
@@ -679,6 +752,8 @@ def load():
     ex = pd.Series([True if any([cn,bc,co]) else False for cn,bc,co in zip(ecn,ebc,eco)],index=eco.index)
     dfcomb = dfe.copy()
     dfcomb['exhaust'] = ex
+    
+    
     
     print('Data loaded successfully from file')
     
@@ -703,6 +778,20 @@ def load():
     
     return dfe,dfcn,dfco,dfbc,dfcomb,dfe_f,dfcn_f,dfco_f,dfbc_f,dfcomb_f
 
+
+def merge_new_ccn(d,ccn):
+    s = d.index[0]
+    e = d.index[-1]
+    
+    for col in ccn.columns:
+        if col in d.columns:
+            d = d.drop(col,axis=1)
+    if 'ccn' in d.columns:
+        d = d.drop('ccn',axis=1)
+    
+    d = pd.concat([d,ccn],axis=1,join_axes=[d.index])
+    d = d[s:e]
+    return d
 
 if os.path.isdir(master_path_lcl):
     master_path = master_path_lcl
