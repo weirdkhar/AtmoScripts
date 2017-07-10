@@ -38,8 +38,8 @@ def main(exhaust_path = exhaust_path,
          enddate = '2016-05-07'
          ):
     df = create_exhaust_id(exhaust_path = exhaust_path,
-                      startdate = '2016-05-06',
-                      enddate = '2016-05-07'
+                      startdate = startdate,
+                      enddate = enddate
                       )
     return df
 
@@ -264,7 +264,7 @@ def exhaust_flag_bc(df,
 def exhaust_flag_rolling_var(df,
                               column='cn',
                               stat_window=60*10,
-                              num_deviations = 5
+                              num_deviations = 3
                               ):
     '''
     Identifies the exhaust using a rolling variability filter. The filter 
