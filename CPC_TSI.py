@@ -67,6 +67,10 @@ def Load_to_HDF(input_path= None,
         read_cpc_csv(file, output_h5_filename, output_file_frequency, 
                      InputTZ, OutputTZ)  
     
+    # Clean up
+    if os.path.isfile('partial_files_loaded.txt'):
+        os.remove('partial_files_loaded.txt')
+        
     #Save the files that have already been loaded to file for next update
     with open('files_loaded.txt', 'wb') as f:
         try:
@@ -293,6 +297,8 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
         # Extract initial timestamp for each sample (i.e. each row)
         try:
             chunk['sample_timestamp'] = pd.to_datetime(chunk['Start Date']+' '+chunk['Start Time'], format = '%m/%d/%y %H:%M:%S')
+            chunk = chunk.reset_index()
+            del chunk['index']
         except KeyError:
             # The csv file that you've read isn't actually a TSI CPC file
             return
