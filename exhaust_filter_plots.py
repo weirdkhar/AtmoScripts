@@ -529,7 +529,7 @@ def plt_ts_cn10(saveorshowplot='save'):
     return
 
 def plt_ts_cn10_zoom(saveorshowplot='save'):
-    startdate = '2016-05-28 00:00:00'
+    startdate = '2016-05-29 00:00:00'
     enddate = '2016-06-02 00:00:01'
     dfe1 = dfe[startdate:enddate]
     dfe_f1 = dfe_f[startdate:enddate]
@@ -731,7 +731,9 @@ def load():
     
     if 'ccn_0.5504' not in dfe.columns:
         ccn = pd.read_hdf('ccn_1s_in2016_v03.h5',key='ccn')
-    
+        ccn = ccn.shift(10,freq='H') # Correct a time offset
+        
+        
         dfe = merge_new_ccn(dfe,ccn)
         dfcn = merge_new_ccn(dfcn,ccn)
         dfco = merge_new_ccn(dfco,ccn)
