@@ -58,7 +58,7 @@ def main(force_reload_exhaust = False,
          cn_id = True,
          bc_id = True,
          
-         filter_window = 60*10,
+         filter_window = 60*20,
          
          co_stat_window = 60*5,
          co_num_devs = 4,
