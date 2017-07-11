@@ -4,7 +4,7 @@ Created on Wed Jun  7 14:09:13 2017
 
 @author: hum094
 """
-saveorshowplot = 'show'
+saveorshowplot = 'save'
 load_all_data = True
 load_partial = False
 
@@ -24,11 +24,21 @@ from atmosplots import saveorshowplot as handle_plt
 
 master_path_svr = 'h:\\code\\AtmoScripts\\'
 master_path_lcl = 'c:\\OneDrive\\RuhiFiles\\Research\\ProgramFiles\\git\\AtmoScripts\\'
-exhaust_path_svr = 'r:\\RV_Investigator\\Exhaust\\Data\\'
+
+exhaust_path_svr = 'r:\\RV_Investigator\\Exhaust\\Data\\3_deviations_rolling_20minWind\\'
 exhaust_path_lcl = 'c:\\Temp\\ExhaustData\\'
+
 plt_path_svr = 'r:\\RV_Investigator\\Exhaust\\'
 plt_path_lcl = 'c:\\OneDrive\\RuhiFiles\\Research\\Writing\\Writing_RVI\\AMT_RVI_ExhaustFilter\\Plots\\'
 
+ccn_path = 'r:\\RV_Investigator\\Exhaust\\Data\\'
+
+mad_array_path = ccn_path
+
+#z_startdate = '2016-05-28 00:00:00'
+#z_enddate = '2016-06-02 00:00:01'
+z_startdate = '2016-05-18 00:00:00'
+z_enddate = '2016-05-22 00:00:01'
 
 
 #dfe,dfcn,dfco,dfbc,dfe_f,dfcn_f,dfco_f,dfbc_f
@@ -37,6 +47,13 @@ def main():
     subplt_wd('cn10',False,saveorshowplot)
     subplt_wd('CO',False,saveorshowplot)
     subplt_wd('ccn_0.5504',False,saveorshowplot)
+    plt_ts_ccn_exhaust_subplots(z_startdate,z_enddate,
+                                True,saveorshowplot,ext='_zoom')
+    plt_ts_ccn_exhaust_subplots(z_startdate,z_enddate,
+                                False,saveorshowplot,ext='_zoom')
+    ts_ccn_lag(saveorshowplot)
+    
+    plt_wd_ccn_exhaust_subplots(True,saveorshowplot)
     
     boxplot_hist_madarrays('cn10',saveorshowplot)
     boxplot_hist_madarrays('co',saveorshowplot)
@@ -46,10 +63,12 @@ def main():
     ts_all3subplots_zoomed(False,saveorshowplot)
     ts_all3subplots_zoomed(True,saveorshowplot)
 #    plt_ts_cn10('show')
-#    boxplot_madarrays(saveorshowplot)
-    plt_compare_wdws(False,saveorshowplot)
-    plt_compare_wdws(True,saveorshowplot)
+#    boxplot_madarrays(saveorshowplot)◙
+    plt_compare_wdws('cn10',False,saveorshowplot)
+    plt_compare_wdws('cn10',True,saveorshowplot)
     
+    plt_compare_wdws('ccn_0.5504',False,saveorshowplot)
+    plt_compare_wdws('ccn_0.5504',True,saveorshowplot)
     
     plt_ts_cn10(saveorshowplot)
     plt_ts_cn10_f(saveorshowplot)
@@ -65,11 +84,234 @@ def main():
     print('Done!')
     return
 
+def plt_ts_ccn_exhaust_subplots(startdate = None,
+                                enddate = None,
+                                logscale = True,
+                                saveorshowplot='show',
+                                column = 'ccn_0.5504',
+                                ext = ''):
+    
+    
+    f, (ax1, ax2, ax3, ax4) = plt.subplots(4,1,sharex=True,figsize=(8,11))
+    
+    ax1.plot(dfe[column],'.r', markersize=2, alpha=0.2)
+    ax1.plot(dfe_f[column],'.k', markersize=2)
+    ax1.set_title('CCN')
+    ax1.set_ylabel('Num. Conc. ($cm^{-3}$)')
+    
+    ax2.plot(dfe['cn10'],'.r', markersize=2, alpha=0.2)
+    ax2.plot(dfcn_f['cn10'],'.k', markersize=2)
+    ax2.set_title('CN$_{10}$')
+    ax2.set_ylabel('Num. Conc. ($cm^{-3}$)')
+    
+    ax3.plot(dfe['CO'],'.r', markersize=2, alpha=0.2)
+    ax3.plot(dfco_f['CO'],'.k', markersize=2)
+    ax3.set_title('CO')
+    ax3.set_ylabel('Mixing Ratio ($ppb$)')
+    
+    ax4.plot(dfe['BC'],'.r', markersize=2, alpha=0.2)
+    ax4.plot(dfbc_f['BC'],'.k', markersize=2)
+    ax4.set_title('BC')
+    ax4.set_ylabel('Conc. ($ng.m^{-3}$)')
+    
+    
+    if logscale:
+        for ax in [ax1,ax2,ax3,ax4]:
+            ax.set_yscale('log')
+        
+        ax1.set_ylim([10,10000])
+        
+        ax2.set_ylim([10,10000])
+        
+        ax3.set_ylim([50,62])
+        ax3.set_yticks([50, 53, 56, 59 ,62])
+        ax3.get_yaxis().set_major_formatter(mticker.ScalarFormatter())
+        
+        ax4.set_ylim([0.01,10])
+        
+        lbl = 'log'
+    else:
+        ax1.set_ylim([0,1000])
+        ax2.set_ylim([0,2000])
+        ax3.set_ylim([50,62])
+        ax4.set_ylim([0,1])
+        
+        lbl = 'lin'
+    
+    # Format the x axis
+    ax4.xaxis.set_visible(True)
+    
+    if startdate is not None:
+        ax4.set_xlim([startdate,enddate])
+    
+    hours = mdates.HourLocator([6,12,18])
+    days = mdates.DayLocator()
+    
+    sublabels = ['A','B','C','D','E','F','G','H','I']
+    i=0
+    for ax in [ax1,ax2,ax3,ax4]:
+        ax.text(0.98, 1.02,sublabels[i],fontweight='bold',transform=ax.transAxes)
+        i = i + 1
+            
+        ax.xaxis.set_minor_locator(hours)
+        ax.xaxis.set_major_locator(days)
+        ax.get_yaxis().set_label_coords(-0.075,0.5) # Align ylabels
+        if ax is ax4:
+            ax4.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
+        else:
+            # Hide the axis labels, but keep the ticks
+            ax.tick_params(labelbottom='off')
+    
+    f.autofmt_xdate()
+    
+    # Show or save
+    handle_plt(plt,saveorshowplot,plt_path,
+               outputfilename='ts_ccnfilt_'+lbl+ext)
+    
+    return
+
+
+def plt_wd_ccn_exhaust_subplots(logscale = True,
+                                saveorshowplot='show',
+                                column = 'ccn_0.5504'
+                                ):
+    
+    f, (ax1, ax2, ax3, ax4) = plt.subplots(4,1,sharex=True,figsize=(8,11))
+    
+    ax1.plot(dfe['WindDirRel_vmean'], dfe[column],'.r', markersize=2, alpha=0.2)
+    ax1.plot(dfe_f['WindDirRel_vmean'], dfe_f[column],'.k', markersize=2)
+    ax1.set_title('CCN')
+    ax1.set_ylabel('Num. Conc. ($cm^{-3}$)')
+    
+    ax2.plot(dfe['WindDirRel_vmean'], dfe['cn10'],'.r', markersize=2, alpha=0.2)
+    ax2.plot(dfcn_f['WindDirRel_vmean'], dfcn_f['cn10'],'.k', markersize=2)
+    ax2.set_title('CN$_{10}$')
+    ax2.set_ylabel('Num. Conc. ($cm^{-3}$)')
+    
+    ax3.plot(dfe['WindDirRel_vmean'],dfe['CO'],'.r', markersize=2, alpha=0.2)
+    ax3.plot(dfco_f['WindDirRel_vmean'],dfco_f['CO'],'.k', markersize=2)
+    ax3.set_title('CO')
+    ax3.set_ylabel('Mixing Ratio ($ppb$)')
+    
+    ax4.plot(dfe['WindDirRel_vmean'],dfe['BC'],'.r', markersize=2, alpha=0.2)
+    ax4.plot(dfbc_f['WindDirRel_vmean'],dfbc_f['BC'],'.k', markersize=2)
+    ax4.set_title('BC')
+    ax4.set_ylabel('Conc. ($ng.m^{-3}$)')
+    
+    
+    if logscale:
+        for ax in [ax1,ax2,ax3,ax4]:
+            ax.set_yscale('log')
+        
+        ax1.set_ylim([10,10000])
+        
+        ax2.set_ylim([10,1000000])
+        
+        ax3.set_ylim([45,800])
+        
+        ax4.set_ylim([0.01,10])
+        
+        lbl = 'log'
+    else:
+        ax1.set_ylim([0,1000])
+        ax2.set_ylim([0,2000])
+#        ax3.set_ylim([50,62])
+        ax4.set_ylim([0,1])
+        
+        lbl = 'lin'
+    
+    # Format the x axis
+    ax4.xaxis.set_visible(True)    
+    ax4.set_xlim([0,360])    
+    ax4.set_xticks([0,50,120,180,240,300,360])
+    ax4.set_xlabel('Relative Wind Direction ($^o$)')
+
+    sublabels = ['A','B','C','D','E','F','G','H','I']
+    i=0
+    for ax in [ax1,ax2,ax3,ax4]:
+        ax.text(0.98, 1.02,sublabels[i],fontweight='bold',transform=ax.transAxes)
+        i = i + 1
+        
+        ax.get_yaxis().set_label_coords(-0.075,0.5) # Align ylabels
+        if ax is not ax4:
+            # Hide the axis labels, but keep the ticks
+            ax.tick_params(labelbottom='off')
+
+    # Show or save
+    handle_plt(plt,saveorshowplot,plt_path,
+               outputfilename='wd_ccnfilt_'+lbl)
+    
+    return
+            
+
+def ts_ccn_lag(saveorshowplot,logscale=False):
+    z_startdate = '2016-05-21 21:43:00'
+    z_enddate = '2016-05-21 21:44:00'
+    column = 'ccn_0.5504'
+    
+    f, (ax1, ax2) = plt.subplots(2,1,sharex=True,figsize=(8,5.5))
+    
+    ax1.plot(dfe[column],'.r', markersize=5)
+    ax1.plot(dfe_f[column],'.k', markersize=5)
+    ax1.set_title('CCN')
+    ax1.set_ylabel('Num. Conc. ($cm^{-3}$)')
+    
+    ax2.plot(dfe['cn10'],'.r', markersize=5)
+    ax2.plot(dfcn_f['cn10'],'.k', markersize=5)
+    ax2.set_title('CN$_{10}$')
+    ax2.set_ylabel('Num. Conc. ($cm^{-3}$)')
+    
+    
+    if logscale:
+        for ax in [ax1,ax2]:
+            ax.set_yscale('log')
+        
+        ax1.set_ylim([10,10000])
+        
+        ax2.set_ylim([10,10000])
+        
+        
+    else:
+        ax1.set_ylim([0,600])
+        ax2.set_ylim([0,1500])
+        
+    
+    # Format the x axis
+    ax2.xaxis.set_visible(True)
+    
+    ax2.set_xlim([z_startdate,z_enddate])
+    
+    ax2.set_xlabel('May-21')
+    
+    secs = mdates.SecondLocator([0,20,40])
+    secs_minor = mdates.SecondLocator([10,30,50])
+    
+    
+    sublabels = ['A','B','C','D','E','F','G','H','I']
+    i=0
+    for ax in [ax1,ax2]:
+        ax.text(0.98, 1.02,sublabels[i],fontweight='bold',transform=ax.transAxes)
+        i = i + 1
+    
+        ax.xaxis.set_minor_locator(secs_minor)
+        ax.xaxis.set_major_locator(secs)
+        ax.get_yaxis().set_label_coords(-0.075,0.5) # Align ylabels
+        if ax is not ax2:
+            # Hide the axis labels, but keep the ticks
+            ax.tick_params(labelbottom='off')
+        else:
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+    
+    f.autofmt_xdate()
+    
+    # Show or save
+    handle_plt(plt,saveorshowplot,plt_path,
+               outputfilename='ts_ccn_lag')
+    return
+
 def plt_ts_all6subplots(saveorshowplot):
     # Create subset of data
-    startdate = '2016-05-28 00:00:00'
-    enddate = '2016-06-02 00:00:01'
-    dfe1 = dfe[startdate:enddate]
+    dfe1 = dfe[z_startdate:z_enddate]
     
     
     f, ((ax1, ax1z), (ax2, ax2z), (ax3,ax3z)) = plt.subplots(3, 2, sharex='col',figsize=(9.5,7))
@@ -77,17 +319,17 @@ def plt_ts_all6subplots(saveorshowplot):
     ### FULL TIME SERIES
     
     #plot cn10
-    ax1.plot(dfe['cn10'],'.',markersize=0.5)
+    ax1.plot(dfe['cn10'],'.k',markersize=0.5)
     ax1.set_ylim([0,2000])
     ax1.set_ylabel('$CN_{10}$ \n Num. Conc. $(cm^{-3})$')
     
     # plot CO
-    ax2.plot(dfe['CO'],'.',markersize=0.5)
+    ax2.plot(dfe['CO'],'.k',markersize=0.5)
     ax2.set_ylabel('$CO$ \n Mixing Ratio $(ppb)$')
     ax2.set_ylim([47.5,62.5])
     
     # plot BC
-    ax3.plot(dfe['BC'],'.',markersize=1)
+    ax3.plot(dfe['BC'],'.k',markersize=1)
     ax3.set_ylim([0,0.5])
     ax3.set_ylabel('$BC$ \n Conc. $(ng.m^{-3})$')
     
@@ -103,16 +345,16 @@ def plt_ts_all6subplots(saveorshowplot):
     ### SUBSET (zoomed)
     
     #plot cn10
-    ax1z.plot(dfe1['cn10'],'.',markersize=2)
+    ax1z.plot(dfe1['cn10'],'.k',markersize=2)
     ax1z.set_ylim([0,2000])
     
     # plot CO
-    ax2z.plot(dfe1['CO'],'.',markersize=2)
+    ax2z.plot(dfe1['CO'],'.k',markersize=2)
     ax2z.set_ylim([52,63])
     ax2z.yaxis.set_major_locator(mticker.MultipleLocator(1))
     
     # plot BC
-    ax3z.plot(dfe1['BC'],'.',markersize=2)
+    ax3z.plot(dfe1['BC'],'.k',markersize=2)
     ax3z.set_ylim([0,0.5])
     
     # Format the x axis
@@ -122,6 +364,13 @@ def plt_ts_all6subplots(saveorshowplot):
     ax3z.xaxis.set_minor_locator(hours)
     ax3z.xaxis.set_major_locator(days)
     ax3z.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
+    
+    sublabels = ['A','B','C','D','E','F','G','H','I']
+    i=0
+    for ax in [ax1,ax2,ax3,ax1z,ax2z,ax3z]:
+        ax.text(0.98, 1.02,sublabels[i],fontweight='bold',transform=ax.transAxes)
+        i = i + 1
+    
     
     f.autofmt_xdate()
     
@@ -136,16 +385,16 @@ def ts_all3subplots(logscale=True,saveorshowplot='save'):
     ### FULL TIME SERIES
 
     #plot cn10
-    ax1.plot(dfe['cn10'],'.',markersize=0.5)
+    ax1.plot(dfe['cn10'],'.k',markersize=0.5)
     ax1.set_ylabel('$CN_{10}$ \n Num. Conc. ($cm^{-3}$)')
 
     # plot CO
-    ax2.plot(dfe['CO'],'.',markersize=0.5)
+    ax2.plot(dfe['CO'],'.k',markersize=0.5)
     ax2.set_ylabel('$CO$ \n Mixing Ratio ($ppb$)')
     
 
     # plot BC
-    ax3.plot(dfe['BC'],'.',markersize=1)
+    ax3.plot(dfe['BC'],'.k',markersize=1)
     ax3.set_ylabel('$BC$ \n Conc. ($ng.m^{-3}$)')
 
     # Format the x axis
@@ -155,6 +404,13 @@ def ts_all3subplots(logscale=True,saveorshowplot='save'):
     ax3.xaxis.set_minor_locator(days)
     ax3.xaxis.set_major_locator(weeks)
     ax3.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
+    
+    sublabels = ['A','B','C','D','E','F','G','H','I']
+    i=0
+    for ax in [ax1,ax2,ax3]:
+        ax.text(0.98, 1.02,sublabels[i],fontweight='bold',transform=ax.transAxes)
+        i = i + 1
+    
     
     f.autofmt_xdate()
 
@@ -180,9 +436,8 @@ def ts_all3subplots(logscale=True,saveorshowplot='save'):
 
 def ts_all3subplots_zoomed(logscale=False,saveorshowplot='save'):
     # Create subset of data
-    startdate = '2016-05-28 00:00:00'
-    enddate = '2016-06-02 00:00:01'
-    dfe1 = dfe[startdate:enddate]
+    
+    dfe1 = dfe[z_startdate:z_enddate]
     
     
     f, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex='col',figsize=(9.5,7))
@@ -190,15 +445,15 @@ def ts_all3subplots_zoomed(logscale=False,saveorshowplot='save'):
     ### SUBSET (zoomed)
     
     #plot cn10
-    ax1.plot(dfe1['cn10'],'.',markersize=2)
+    ax1.plot(dfe1['cn10'],'.k',markersize=2)
     ax1.set_ylabel('$CN_{10}$ \n Num. Conc. $(cm^{-3})$')
     
     # plot CO
-    ax2.plot(dfe1['CO'],'.',markersize=2)
+    ax2.plot(dfe1['CO'],'.k',markersize=2)
     ax2.set_ylabel('$CO$ \n Mixing Ratio $(ppb)$')
     
     # plot BC
-    ax3.plot(dfe1['BC'],'.',markersize=2)
+    ax3.plot(dfe1['BC'],'.k',markersize=2)
     ax3.set_ylabel('$BC$ \n Conc. $(ng.m^{-3})$')
     
     # Format the x axis
@@ -224,11 +479,19 @@ def ts_all3subplots_zoomed(logscale=False,saveorshowplot='save'):
         label = 'logscale'
     else:
         ax1.set_ylim([0,2000])
-        ax2.set_ylim([52,63])
+        ax2.set_ylim([50,62])
         ax2.yaxis.set_major_locator(mticker.MultipleLocator(2))
         ax3.set_ylim([0,0.31])
         ax3.yaxis.set_major_locator(mticker.MultipleLocator(0.1))
         label = 'linscale'
+    
+    sublabels = ['A','B','C','D','E','F','G','H','I']
+    i=0
+    for ax in [ax1,ax2,ax3]:
+        ax.text(0.98, 1.02,sublabels[i],fontweight='bold',transform=ax.transAxes)
+        i = i + 1
+    
+    
     
     # Show or save
     handle_plt(plt,saveorshowplot,plt_path,
@@ -238,7 +501,7 @@ def ts_all3subplots_zoomed(logscale=False,saveorshowplot='save'):
 
 def boxplot_hist_madarrays(data = 'cn10', saveorshowplot='save'):
     # https://matplotlib.org/examples/pylab_examples/broken_axis.html
-    os.chdir(exhaust_path)
+    os.chdir(mad_array_path)
     if data.lower() in ['cn','cn10']:
         df = pd.read_hdf('mad_array_cn10.h5',key='mad')
         df = df.dropna()
@@ -268,8 +531,8 @@ def boxplot_hist_madarrays(data = 'cn10', saveorshowplot='save'):
                      transform=f.transFigure, figure=f, color='white')
     L2 = lines.Line2D([0.477, 0.477], [0.48+2*d, 0.52-2*d], lw = 10,
                      transform=f.transFigure, figure=f, color='white')
-    L3 = lines.Line2D([0.548, 0.548], [0.48+2*d, 0.52-2*d], #lw = 10,
-                     transform=f.transFigure, figure=f, color='white')
+#    L3 = lines.Line2D([0.548, 0.548], [0.48+2*d, 0.52-2*d], #lw = 10,
+#                     transform=f.transFigure, figure=f, color='white')
     L4 = lines.Line2D([0.900, 0.900], [0.48+2*d, 0.52-2*d], lw = 10,
                      transform=f.transFigure, figure=f, color='white')
     
@@ -355,7 +618,7 @@ def boxplot_hist_madarrays(data = 'cn10', saveorshowplot='save'):
 
 def boxplot_madarrays(saveorshowplot='save'):
     # https://matplotlib.org/examples/pylab_examples/broken_axis.html
-    os.chdir(master_path)
+    os.chdir(mad_array_path)
     mcn = pd.read_hdf('mad_array_cn10.h5',key='mad')
     mco = pd.read_hdf('mad_array_co.h5',key='mad')
     
@@ -470,6 +733,13 @@ def subplt_wd(column='cn10',logscale = False, saveorshowplot='save'):
     
     f.text(0.02, 0.5,units,va='center', rotation='vertical')
     
+    sublabels = ['A','B','C','D','E','F','G','H','I']
+    i=0
+    for ax in [ax1,ax2,ax3,ax4,ax5,ax6]:
+        ax.text(0.98, 1.02,sublabels[i],fontweight='bold',transform=ax.transAxes)
+        i = i + 1
+    
+    
     if 'ccn' in column:
         for ax in [ax1,ax2,ax3,ax4,ax5]:
             ax.set_ylim([0,6000])
@@ -529,10 +799,8 @@ def plt_ts_cn10(saveorshowplot='save'):
     return
 
 def plt_ts_cn10_zoom(saveorshowplot='save'):
-    startdate = '2016-05-29 00:00:00'
-    enddate = '2016-06-02 00:00:01'
-    dfe1 = dfe[startdate:enddate]
-    dfe_f1 = dfe_f[startdate:enddate]
+    dfe1 = dfe[z_startdate:z_enddate]
+    dfe_f1 = dfe_f[z_startdate:z_enddate]
     
     plt.figure(figsize=(11,8))
     
@@ -548,10 +816,8 @@ def plt_ts_cn10_zoom(saveorshowplot='save'):
     return
 
 def plt_ts_ccn_zoom(saveorshowplot='save'):
-    startdate = '2016-05-28 00:00:00'
-    enddate = '2016-06-02 00:00:01'
-    dfe1 = dfe[startdate:enddate]
-    dfe_f1 = dfe_f[startdate:enddate]
+    dfe1 = dfe[z_startdate:z_enddate]
+    dfe_f1 = dfe_f[z_startdate:z_enddate]
     
     plt.figure(figsize=(11,8))
     
@@ -605,7 +871,7 @@ def plt_ts_co_f(saveorshowplot='save'):
 def plt_ts_ccn(saveorshowplot='save'):
     plt.figure(figsize=(11,8))
     
-    plt.plot(dfe['ccn'],'.b',dfe_f['ccn'],'.r')
+    plt.plot(dfe['ccn_0.5504'],'.b',dfe_f['ccn_0.5504'],'.r')
     plt.ylabel('Number Conc ($cm^{-3}$)')
     plt.ylim([0,1000])
     plt.title('ccn timeseries')
@@ -616,7 +882,7 @@ def plt_ts_ccn(saveorshowplot='save'):
 def plt_ts_ccn_f(saveorshowplot='save'):
     plt.figure(figsize=(11,8))
     
-    plt.plot(dfe_f['ccn'],'.')
+    plt.plot(dfe_f['ccn_0.5504'],'.')
     plt.ylabel('Number Conc ($cm^{-3}$)')
     #plt.ylim([0,2000])
     plt.title('ccn timeseries - ccn full filt only')
@@ -678,7 +944,7 @@ def plt_wdwsfilt(saveorshowplot='save'):
                outputfilename='wd_cn10_wdws_filter')
     return
 
-def plt_compare_wdws(logscale = False, saveorshowplot='save'):
+def plt_compare_wdws(col = 'cn10', logscale = False, saveorshowplot='save'):
     dfwdws = dfe[[False if (((wd>90) and (wd<270)) or ws<10) else
                   True for wd,ws in 
                   zip(dfe['WindDirRel_vmean'],dfe['WindSpdRel_port'])]]
@@ -686,8 +952,8 @@ def plt_compare_wdws(logscale = False, saveorshowplot='save'):
     
     f, ax = plt.subplots(1, 1)
     
-    ax.plot(dfe['WindDirRel_vmean'],dfe['cn10'],'.',             
-             dfwdws['WindDirRel_vmean'],dfwdws['cn10'],'.r')
+    ax.plot(dfe['WindDirRel_vmean'],dfe[col],'.',             
+             dfwdws['WindDirRel_vmean'],dfwdws[col],'.r')
     
     ax.set_xlabel('Relative Wind Direction ($^o$)')
     ax.set_ylabel('Num Conc ($cm^{-3}$)')
@@ -705,7 +971,7 @@ def plt_compare_wdws(logscale = False, saveorshowplot='save'):
         
         
     handle_plt(plt,saveorshowplot,plt_path,
-               outputfilename='wd_cn10_wdws_filter_compare_'+label)
+               outputfilename='wd_'+col+'_wdws_filter_compare_'+label)
     return
 
 def load():
@@ -730,6 +996,7 @@ def load():
     dfbc = pd.read_hdf('in2016_v03_dfbc'+ext+'.h5',key='data')[startdate:enddate]
     
     if 'ccn_0.5504' not in dfe.columns:
+        os.chdir(ccn_path)
         ccn = pd.read_hdf('ccn_1s_in2016_v03.h5',key='ccn')
         ccn = ccn.shift(10,freq='H') # Correct a time offset
         
@@ -739,6 +1006,7 @@ def load():
         dfco = merge_new_ccn(dfco,ccn)
         dfbc = merge_new_ccn(dfbc,ccn)
         
+        os.chdir(exhaust_path)
         dfe.to_hdf('in2016_v03_dfe_publication.h5',key='data')
         dfcn.to_hdf('in2016_v03_dfcn_publication.h5',key='data')
         dfco.to_hdf('in2016_v03_dfco_publication.h5',key='data')
