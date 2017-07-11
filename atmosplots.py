@@ -1326,6 +1326,10 @@ def friendly_filename(fname, deletechars = '\/:*?"<>|'):
     for ch in deletechars:
         fname= fname.replace(ch,'-')
     #fname = fname.split('.')[0]
+    
+    x = fname.split('.')
+    if len(x) > 1:
+        fname = fname.replace('.','p')
     return fname
 '''
 import sys
