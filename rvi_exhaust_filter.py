@@ -53,14 +53,14 @@ def create_exhaust_id(df = None,
                       co_id = True,
                       cn_id = True,
                       bc_id = True,
-                      filter_window = 60*10,
+                      filter_window = 60*20,
                       
-                      co_stat_window = 10,
-                      co_num_devs = 5,
+                      co_stat_window = 5,
+                      co_num_devs = 3,
                       #co_stat_threshold = 0.245,
                       
-                      cn_stat_window = 10,
-                      cn_num_devs = 5,
+                      cn_stat_window = 5,
+                      cn_num_devs = 3,
                       #cn_stat_threshold = 50,
                       
                       bc_lim = 0.07001

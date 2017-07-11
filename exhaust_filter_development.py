@@ -61,10 +61,10 @@ def main(force_reload_exhaust = False,
          filter_window = 60*20,
          
          co_stat_window = 60*5,
-         co_num_devs = 4,
+         co_num_devs = 3,
         
          cn_stat_window = 60*5,
-         cn_num_devs = 4,
+         cn_num_devs = 3,
          
          bc_lim = 0.07001):
     
