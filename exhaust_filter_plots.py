@@ -43,6 +43,8 @@ z_enddate = '2016-05-22 00:00:01'
 
 #dfe,dfcn,dfco,dfbc,dfe_f,dfcn_f,dfco_f,dfbc_f
 def main():
+    print('Creating plots!')
+    
     plt_ts_cn10_zoom(saveorshowplot)
     subplt_wd('cn10',False,saveorshowplot)
     subplt_wd('CO',False,saveorshowplot)
@@ -81,7 +83,8 @@ def main():
     
     plt_ts_co2(saveorshowplot)
     plt_ts_co2_f(saveorshowplot)
-    print('Done!')
+    
+    print('Finished plotting!')
     return
 
 def plt_ts_ccn_exhaust_subplots(startdate = None,
@@ -101,7 +104,7 @@ def plt_ts_ccn_exhaust_subplots(startdate = None,
     
     ax2.plot(dfe['cn10'],'.r', markersize=2, alpha=0.2)
     ax2.plot(dfcn_f['cn10'],'.k', markersize=2)
-    ax2.set_title('CN$_{10}$')
+    ax2.set_title('CN')
     ax2.set_ylabel('Num. Conc. ($cm^{-3}$)')
     
     ax3.plot(dfe['CO'],'.r', markersize=2, alpha=0.2)
@@ -185,7 +188,7 @@ def plt_wd_ccn_exhaust_subplots(logscale = True,
     
     ax2.plot(dfe['WindDirRel_vmean'], dfe['cn10'],'.r', markersize=2, alpha=0.2)
     ax2.plot(dfcn_f['WindDirRel_vmean'], dfcn_f['cn10'],'.k', markersize=2)
-    ax2.set_title('CN$_{10}$')
+    ax2.set_title('CN')
     ax2.set_ylabel('Num. Conc. ($cm^{-3}$)')
     
     ax3.plot(dfe['WindDirRel_vmean'],dfe['CO'],'.r', markersize=2, alpha=0.2)
@@ -208,7 +211,8 @@ def plt_wd_ccn_exhaust_subplots(logscale = True,
         ax2.set_ylim([10,1000000])
         
         ax3.set_ylim([45,800])
-        
+        ax3.set_yticks([50,100,200,400,800])
+        ax3.get_yaxis().set_major_formatter(mticker.ScalarFormatter())
         ax4.set_ylim([0.01,10])
         
         lbl = 'log'
@@ -258,7 +262,7 @@ def ts_ccn_lag(saveorshowplot,logscale=False):
     
     ax2.plot(dfe['cn10'],'.r', markersize=5)
     ax2.plot(dfcn_f['cn10'],'.k', markersize=5)
-    ax2.set_title('CN$_{10}$')
+    ax2.set_title('CN')
     ax2.set_ylabel('Num. Conc. ($cm^{-3}$)')
     
     
@@ -321,7 +325,7 @@ def plt_ts_all6subplots(saveorshowplot):
     #plot cn10
     ax1.plot(dfe['cn10'],'.k',markersize=0.5)
     ax1.set_ylim([0,2000])
-    ax1.set_ylabel('$CN_{10}$ \n Num. Conc. $(cm^{-3})$')
+    ax1.set_ylabel('$CN$ \n Num. Conc. $(cm^{-3})$')
     
     # plot CO
     ax2.plot(dfe['CO'],'.k',markersize=0.5)
@@ -386,7 +390,7 @@ def ts_all3subplots(logscale=True,saveorshowplot='save'):
 
     #plot cn10
     ax1.plot(dfe['cn10'],'.k',markersize=0.5)
-    ax1.set_ylabel('$CN_{10}$ \n Num. Conc. ($cm^{-3}$)')
+    ax1.set_ylabel('$CN$ \n Num. Conc. ($cm^{-3}$)')
 
     # plot CO
     ax2.plot(dfe['CO'],'.k',markersize=0.5)
@@ -446,7 +450,7 @@ def ts_all3subplots_zoomed(logscale=False,saveorshowplot='save'):
     
     #plot cn10
     ax1.plot(dfe1['cn10'],'.k',markersize=2)
-    ax1.set_ylabel('$CN_{10}$ \n Num. Conc. $(cm^{-3})$')
+    ax1.set_ylabel('$CN$ \n Num. Conc. $(cm^{-3})$')
     
     # plot CO
     ax2.plot(dfe1['CO'],'.k',markersize=2)
@@ -508,7 +512,7 @@ def boxplot_hist_madarrays(data = 'cn10', saveorshowplot='save'):
         ylabel = 'Number Concentration ($cm^{-3}$)'
         ylim_l = [0,25]
         ylim_u = [25, 3*10**5]
-        xtick_label = '$CN_{10}$'
+        xtick_label = 'CN'
         log_bins = np.logspace(0, 6, 1000, endpoint=True)
     elif data.lower() == 'co':
         df = pd.read_hdf('mad_array_co.h5',key='mad')
@@ -516,7 +520,7 @@ def boxplot_hist_madarrays(data = 'cn10', saveorshowplot='save'):
         ylabel = 'Mixing ratio ($ppb$)'
         ylim_l = [0,0.35]
         ylim_u = [0.35, 30]
-        xtick_label = '$CO$'
+        xtick_label = 'CO'
         log_bins = np.logspace(-2, 2, 1000, endpoint=True)
         
     
@@ -612,7 +616,7 @@ def boxplot_hist_madarrays(data = 'cn10', saveorshowplot='save'):
     
     # Show or save
     handle_plt(plt,saveorshowplot,plt_path,
-               outputfilename='boxplot_madarray_' + data.lower())
+               outputfilename='boxplot_madarray_' + xtick_label.lower())
     
     return
 
@@ -638,7 +642,7 @@ def boxplot_madarrays(saveorshowplot='save'):
     ax1.set_ylim([75,10**6])
     ax2.set_ylim([0,75])
     
-    plt.setp(ax2,xticklabels=['$CN_{10}$'])
+    plt.setp(ax2,xticklabels=['CN'])
     
     
     # hide the spines between ax and ax2
@@ -696,7 +700,12 @@ def subplt_wd(column='cn10',logscale = False, saveorshowplot='save'):
     f, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(6,1,figsize=(8,11))
         
     ax1.plot(dfe['WindDirRel_vmean'],dfe[column],'.k', markersize=2)
-    ax1.set_title('Raw ' + column + ' data')
+    if 'ccn' in column:
+        ax1.set_title('Raw CCN data')
+    elif 'cn10' in column:
+        ax1.set_title('Raw CN data')
+    else:
+        ax1.set_title('Raw ' + column + ' data')
     ax1.set_xlim([0,360])
     ax1.xaxis.set_visible(False)
     
@@ -964,7 +973,8 @@ def plt_compare_wdws(col = 'cn10', logscale = False, saveorshowplot='save'):
     
     if logscale:
         ax.set_yscale('log')
-        ax.set_ylim([5,10**7])
+        if col == 'cn10':
+            ax.set_ylim([5,10**7])
         label = 'log'
     else:
         label = 'lin'
