@@ -13,6 +13,8 @@ import datetime
 import os
 import time
 import math
+from tkinter import simpledialog
+import tkinter as tk
 
 # A function to write a dataset to a NetCDF file
 # Developed utilising info from http://schubert.atmos.colostate.edu/~cslocum/netcdf_example.html
@@ -69,7 +71,8 @@ def log_filter(data,
         
     return data
 
-def find_variable_parameter(variable, parameter = 'units'):
+def find_variable_parameter(variable, parameter = 'units', 
+                            gui_mode= False, gui_mainloop = None):
     '''
     Finds the parameter of the variable being saved to netCDF format.
     It will first explore a previously generated database, and if not present
@@ -101,41 +104,47 @@ def find_variable_parameter(variable, parameter = 'units'):
         no_info_in_file = True
     
     if no_info_in_file:
-        print("I cannot find the " + parameter + " for variable '" + 
-              variable + "'. Please enter is here:")
-        value = input()
-        confirm = 'n'
-        while confirm.lower() != 'y':
-            print("You have assigned '" + value + "' as the " + parameter +
-                  " for '" + variable + "'.")
-            print("Is this correct? This will be saved for future use. Type 'y'/'n'")
-            confirm = input()
-            if confirm.lower() == "n":
-                print("Please input the correct " + parameter + 
-                      " for '" + variable +"':")
-                value = input()
-    
-        # Add new variable to parameter dictionary
-        p_dict[variable]=value
+        prompt = "I cannot find the " + parameter + " for variable '" + \
+              variable + "'. Please enter is here:"
+        if gui_mode:
+            value = ''#netcdf_input_dialog(description = prompt, 
+                       #                 title = 'NetCDF Variable Info Required!',
+                       #                 gui_mainloop = gui_mainloop)
+        else:
+            print(prompt)
+            value = input()
+            confirm = 'n'
+            while confirm.lower() != 'y':
+                print("You have assigned '" + value + "' as the " + parameter +
+                      " for '" + variable + "'.")
+                print("Is this correct? This will be saved for future use. Type 'y'/'n'")
+                confirm = input()
+                if confirm.lower() == "n":
+                    print("Please input the correct " + parameter + 
+                          " for '" + variable +"':")
+                    value = input()
         
-        # Save to file
+            # Add new variable to parameter dictionary
+            p_dict[variable]=value
         
-        # Get new parameter array
-        df1 = pd.DataFrame.from_dict(p_dict, orient='index')
-        df1.index.name='variable'
-        df1.columns = [parameter]
-        # Get old parameter array
-        df2 = ind[[[x for x in ['units','long_name'] if x != parameter][0]]]
-        # Join the two
-        df = df1.join(df2)
-        # ensure order of columns remains 
-        df = df[['units','long_name']] 
-        df.index.name='variable'
-        df = df.reindex(sorted(df.index, key=lambda x: x.lower()))
-        df.to_csv('variable_description.csv')
-        
-        print("'" + value +"' has been assigned and saved as the " + 
-              parameter + " for '" + variable + "'")
+            # Save to file
+            
+            # Get new parameter array
+            df1 = pd.DataFrame.from_dict(p_dict, orient='index')
+            df1.index.name='variable'
+            df1.columns = [parameter]
+            # Get old parameter array
+            df2 = ind[[[x for x in ['units','long_name'] if x != parameter][0]]]
+            # Join the two
+            df = df1.join(df2)
+            # ensure order of columns remains 
+            df = df[['units','long_name']] 
+            df.index.name='variable'
+            df = df.reindex(sorted(df.index, key=lambda x: x.lower()))
+            df.to_csv('variable_description.csv')
+            
+            print("'" + value +"' has been assigned and saved as the " + 
+                  parameter + " for '" + variable + "'")
     else:
         print("Retrieved " + parameter + " for " + variable + " from file.")
         
@@ -147,8 +156,8 @@ def hdf_to_netcdf(h5_filename,
                                   
                  global_title = None,
                  global_description = None,
-                 author = 'Ruhi Humphries',
-                 global_institution = 'CSIRO',
+                 author = None,
+                 global_institution = None,
                  global_comment = None
                  
                  ):
@@ -176,43 +185,79 @@ def df_to_netcdf(df,
                  
                  global_title = None,
                  global_description = None,
-                 author = 'Ruhi Humphries',
-                 global_institution = 'CSIRO',
-                 global_comment = None
+                 author = None,
+                 global_institution = None,
+                 global_comment = None,
+                 
+                 gui_mode = False,
+                 gui_mainloop = None,
+                 
+                 nc_path = None
                  ):
     '''
     Saves a dataframe to netcdf format
     '''
+    if nc_path is not None:
+        os.chdir(nc_path)
+    
     # Setup all the inputs before writing to file
     fname = nc_filename.split('.')[0] + '.nc'
     if type(df) == pd.core.frame.Series:
         df = df.to_frame()
     if nc_dir is not None:
         os.chdir(nc_dir)
-
-    if global_title == None:
-        print('Please input a title (global attribute) of your dataset:')
-        global_title = input()
-    if global_description == None:
-        print('Please input a description (global attribute) of your dataset:')
-        global_description = input()
-    if global_institution == None:
-        print('Please input a institution (global attribute) of your dataset:')
-        global_institution= input()
-    if global_comment == None:
-        print('Please input a comment (global attribute) of your dataset:')
-        global_comment = input()
     
+    if os.path.isfile('netcdf_global_attributes.temp'):
+        global_title,global_description,author,global_institution,global_comment,history = read_temp_glob_att()
+    else:
+        if global_title == None:
+            prompt_text = 'Please input a title (global attribute) of your dataset:'
+            if not gui_mode:
+                print(prompt_text)
+                global_title = input()
+            else:
+                global_title = ''
+        if global_description == None:
+            prompt_text = 'Please input a description (global attribute) of your dataset:'
+            if not gui_mode:
+                print(prompt_text)
+                global_description = input()
+            else:
+                global_description = ''#netcdf_input_dialog(prompt_text, gui_mainloop = gui_mainloop)
+        if author == None:
+            prompt_text = 'Please input an author (global attribute) for your dataset:'
+            if not gui_mode:
+                print(prompt_text)
+                author = input()
+            else:
+                author= ''#netcdf_input_dialog(prompt_text, gui_mainloop = gui_mainloop)
+        if global_institution == None:
+            prompt_text = 'Please input a institution (global attribute) of your dataset:'
+            if not gui_mode:
+                print(prompt_text)
+                global_institution = input()
+            else:
+                global_institution = ''#netcdf_input_dialog(prompt_text, gui_mainloop = gui_mainloop)
+        if global_comment == None:
+            prompt_text = 'Please input a comment (global attribute) of your dataset:'
+            if not gui_mode:
+                print(prompt_text)
+                global_comment = input()
+            else:
+                global_comment = ''#simpledialog.askstring('Input required for NetCDF',prompt_text,parent=gui_mainloop)
+                #netcdf_input_dialog(prompt_text, gui_mainloop = gui_mainloop)
+        
+        save_temp_glob_att(global_title,
+                           global_description,
+                           author,
+                           global_institution,
+                           global_comment)
+        
     print("Creating netCDF file: " + fname)
     # Open a new NetCDF file in write ('w') mode
     w_nc = nc.Dataset(fname,'w', format='NETCDF4')
 
-    # Create global attributes
-    w_nc.description = global_description
-    w_nc.history = "Created at " + time.ctime(time.time()) + " by " + author
-    w_nc.title = global_title
-    w_nc.institution = global_institution
-    w_nc.comment = global_comment
+    
  
     # Create a set of dimensions
     w_nc.createDimension('time',None)
@@ -227,17 +272,24 @@ def df_to_netcdf(df,
     # Create other data variables
     var_dict = {} #Initialise
     for var in df.columns:
+        df, var = nc_friendly_var_name(df,var)
         vtype = df[var].dtype
+        
         try:
             var_dict[var] = w_nc.createVariable(var,vtype,('time',))
         except TypeError:
             if vtype == bool:
                 vtype = 'u1'
-            var_dict[var] = w_nc.createVariable(var,vtype,('time',))
+                var_dict[var] = w_nc.createVariable(var,vtype,('time',))
+            else: # treat everything as strings
+                global_comment = global_comment + '. Variable '+var+ 'dropped \
+                because I couldnt coerce its type'
+                continue
+            
             
         # Create attributes for the variables
-        var_dict[var].units = find_variable_parameter(var,'units')
-        var_dict[var].long_name = find_variable_parameter(var,'long_name')
+        var_dict[var].units = find_variable_parameter(var,'units',gui_mode, gui_mainloop)
+        var_dict[var].long_name = find_variable_parameter(var,'long_name',gui_mode, gui_mainloop)
         var_dict[var].fill_value = np.nan
         
         #update user
@@ -245,13 +297,219 @@ def df_to_netcdf(df,
         
         # Add data to variables
         var_dict[var][:] = df[var].as_matrix()
-        
+    
+    # Create global attributes
+    w_nc.description = global_description
+    w_nc.history = "Created at " + time.ctime(time.time()) + " by " + author
+    w_nc.title = global_title
+    w_nc.institution = global_institution
+    w_nc.comment = global_comment
+
     # close the new file
     w_nc.close()  
     
-    cwd = os.getcwd()
-    print('Successfully saved data as netcdf file in: ' + cwd + '\\' + fname)
+    if nc_path is None:
+        nc_path = os.getcwd()
+    print('Successfully saved data as netcdf file in: ' + nc_path + '\\' + fname)
     return
+
+def nc_friendly_var_name(df,var):
+    var_new = var.replace("#","")
+    var_new = var_new.rstrip()
+    #var_new = var.replace(" ","")
+    df = df.rename(columns = {var:var_new})
+    return df, var_new
+
+#def netcdf_input_dialog(description, 
+#                        title = 'Input needed for NetCDF Global Attributes!',
+#                        gui_mainloop = None):
+#    assert gui_mainloop is not None, 'Please pass me the mainloop from the gui!'
+# #   inpt = MyStrDialog(title,description,gui_mainloop)
+# #   return inpt
+#    return simpledialog.askstring(title,description,parent=gui_mainloop)
+
+
+def save_temp_glob_att(global_title,
+                       global_description,
+                       author,
+                       global_institution,
+                       global_comment,
+                       history = ''):
+    glob_dict={'title':global_title,
+               'description':global_description,
+               'author':author,
+               'institution':global_institution,
+               'comment':global_comment,
+               'history':history
+               }
+    glob_df = pd.DataFrame.from_dict(glob_dict,orient='index')
+    
+    glob_df.to_csv('netcdf_global_attributes.temp')
+    return
+
+def read_temp_glob_att():
+    # Load and format data
+    df = pd.read_csv('netcdf_global_attributes.temp')
+    df = df.set_index('Unnamed: 0')
+    df = df.transpose()
+    
+    # Initialise
+    global_title = None
+    global_description = None
+    author = None
+    global_institution = None
+    global_comment = None
+    history = None
+    
+    # Assign data where available.
+    if 'title' in df.columns:
+        global_title = df['title'][0]
+    if 'description' in df.columns:
+        global_description = df['description'][0]
+    if 'author' in df.columns:
+        author = df['author'][0]
+    if 'institution' in df.columns:
+        global_institution = df['institution'][0]
+    if 'comment' in df.columns:
+        global_comment = df['comment'][0]
+    if 'history' in df.columns:
+        history = df['history'][0]
+    
+    if type(global_title) is not str:
+        global_title = ''
+    if type(global_description) is not str:
+        global_description = ''
+    if type(author) is not str:
+        author = ''
+    if type(global_institution) is not str:
+        global_institution = ''
+    if type(global_comment) is not str:
+        global_comment = ''
+    if type(history) is not str:
+        history = ''
+    
+    return global_title,global_description,author,global_institution,global_comment,history
+
+
+def read_netcdf(file,path = None, print_contents = False):
+    nc_fid = nc.Dataset(file,'r')
+    
+    # Save global attributes for later saving
+    try: 
+        t = nc_fid.getncattr('title')
+    except:
+        t = ''
+    try: 
+        d = nc_fid.getncattr('description')
+    except:
+        d = ''
+    try: 
+        a = nc_fid.getncattr('author')
+    except:
+        a = ''
+    try: 
+        i = nc_fid.getncattr('institution')
+    except:
+        i = ''
+    try: 
+        c = nc_fid.getncattr('comment')
+    except:
+        c = ''
+    try: 
+        h = nc_fid.getncattr('history')
+    except:
+        h = ''
+    save_temp_glob_att(t,d,a,i,c,h)
+    
+    # Extract data from the netcdf file and create a dataframe
+    nc_attrs, nc_dims, nc_vars = ncdump(nc_fid, print_contents)
+    
+    size = len(nc_fid.dimensions[nc_dims[0]])
+    
+    if 'time' in nc_vars:
+        time = nc_fid.variables['time'][:]
+        time_units = nc_fid.variables['time'].units
+        time_calendar = nc_fid.variables['time'].calendar
+        index = nc.num2date(time, time_units, time_calendar)
+    else:
+        index = np.arange(0,size)
+    data = pd.DataFrame(index = index)
+    for var in nc_vars:
+        if var == 'time':
+            continue
+        data[var] = nc_fid.variables[var][:]
+    
+    nc_fid.close()
+    return data
+
+
+def ncdump(nc_fid, verb=True):
+    '''
+    ncdump outputs dimensions, variables and their attribute information.
+    The information is similar to that of NCAR's ncdump utility.
+    ncdump requires a valid instance of Dataset.
+    
+    Adapted from: http://schubert.atmos.colostate.edu/~cslocum/netcdf_example.html
+    
+    Parameters
+    ----------
+    nc_fid : netCDF4.Dataset
+        A netCDF4 dateset object
+    verb : Boolean
+        whether or not nc_attrs, nc_dims, and nc_vars are printed
+
+    Returns
+    -------
+    nc_attrs : list
+        A Python list of the NetCDF file global attributes
+    nc_dims : list
+        A Python list of the NetCDF file dimensions
+    nc_vars : list
+        A Python list of the NetCDF file variables
+    '''
+    def print_ncattr(key):
+        """
+        Prints the NetCDF file attributes for a given key
+
+        Parameters
+        ----------
+        key : unicode
+            a valid netCDF4.Dataset.variables key
+        """
+        try:
+            print("\t\ttype:", repr(nc_fid.variables[key].dtype))
+            for ncattr in nc_fid.variables[key].ncattrs():
+                print('\t\t%s:' % ncattr,\
+                      repr(nc_fid.variables[key].getncattr(ncattr)))
+        except KeyError:
+            print("\t\tWARNING: %s does not contain variable attributes" % key)
+
+    # NetCDF global attributes
+    nc_attrs = nc_fid.ncattrs()
+    if verb:
+        print("NetCDF Global Attributes:")
+        for nc_attr in nc_attrs:
+            print('\t%s:' % nc_attr, repr(nc_fid.getncattr(nc_attr)))
+    nc_dims = [dim for dim in nc_fid.dimensions]  # list of nc dimensions
+    # Dimension shape information.
+    if verb:
+        print("NetCDF dimension information:")
+        for dim in nc_dims:
+            print("\tName:", dim)
+            print("\t\tsize:", len(nc_fid.dimensions[dim]))
+            print_ncattr(dim)
+    # Variable information.
+    nc_vars = [var for var in nc_fid.variables]  # list of nc variables
+    if verb:
+        print("NetCDF variable information:")
+        for var in nc_vars:
+            if var not in nc_dims:
+                print('\tName:', var)
+                print("\t\tdimensions:", nc_fid.variables[var].dimensions)
+                print("\t\tsize:", nc_fid.variables[var].size)
+                print_ncattr(var)
+    return nc_attrs, nc_dims, nc_vars
+
 
 def write_netcdf(data,
                  # Variable attributes
@@ -423,61 +681,3 @@ def write_filelist_to_file(filelist, filelist_filename = 'files_loaded.txt'):
     with open(filelist_filename, 'wb') as f:
         pickle.dump(filelist, f)
     return
-#%%   
-'''
-import sys
-sys.path.append('c:\\Dropbox\\RuhiFiles\\Research\\ProgramFiles\\pythonfiles\\')
-
-import os
-import matplotlib.pyplot as plt
-import numpy as np
-np.seterr(invalid='ignore')
-import pandas as pd
-import RVI_Underway
-import CPC_TSI
-import CCNC
-import CAPRICORN
-import Filter_Timeseries as fTS
-import atmosplots
-
-### Plotting maps
-# import cartopy
-# import basemap
-# import folium
-
-#%% CAPRICORN MASTER PROCESSING DOCUMENT
-MASTER_path = 'c:/Dropbox/RuhiFiles/Research/Projects/2016_V02_CAPRICORN/Data_Processing/Aerosols/'
-uwy_path = 'c:/Dropbox/RuhiFiles/Research/Projects/2016_V02_CAPRICORN/Data_Raw/Underway/'
-CCN_path = 'c:/Dropbox/RuhiFiles/Research/Projects/2016_V02_CAPRICORN/Data_Raw/CCNC/'
-CN3_path = 'c:/Dropbox/RuhiFiles/Research/Projects/2016_V02_CAPRICORN/Data_Raw/TSI_SMPSCPC/3776_CN3/'
-CN10_path = 'c:/Dropbox/RuhiFiles/Research/Projects/2016_V02_CAPRICORN/Data_Raw/TSI_SMPSCPC/3776_CN10/'
-smpsgrimm_path = 'c:/Dropbox/RuhiFiles/Research/Projects/2016_V02_CAPRICORN/Data_Raw/SMPS_GRIMM'    
-    
-#%% Create datasets for each level of processing
-os.chdir(MASTER_path)
-cap = pd.read_hdf('aerosol_merged.h5',key='aerosol')
-manual_exhaust = CAPRICORN.exhaust_filt()
-
-RVI_Underway.create_exhaust_mask(cap, 
-                                 mask_level_num = 1, 
-                                 Filter4WindDir = True, 
-                                 Filter4BC = True,
-                                 Filter4O3 = True,
-                                 Filter4CNstd = True,
-                                 WD_exhaust_upper_limit = 277, WD_exhaust_lower_limit = 97,
-                                 BC_lim = 0.05,
-                                 CN_std_ID = 'CN3', CN3_std_lim = 150, 
-                                 manual_exhaust_mask = manual_exhaust
-                                 )
-capL1 = cap.copy()
-capL1.loc[cap['exhaust_mask_L1'].isnull()] = np.nan
-
-#%%
-if os.path.isfile('test.nc'):
-    os.remove('test.nc')
-write_netcdf(capL1.index,
-             standard_name = 'time')
-write_netcdf(capL1['ccn_med'],
-             standard_name = 'ccn_med',
-             units = 'number conc per cm3')
-'''

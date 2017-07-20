@@ -38,7 +38,7 @@ def Load_to_HDF(input_path= None,
     output_h5_filename = output_h5_filename + '_raw'
         
     if force_reload_from_source:
-        remove_previous_output('h5',force_reload_from_source)
+        remove_previous_output('h5',force_reload_from_source, input_filelist)
     
     if input_filelist is None:
         os.chdir(input_path)
@@ -82,9 +82,78 @@ def Load_to_HDF(input_path= None,
         pickle.dump(filelist, f)
 
     if resample_time:    
-        timebase_resampler(input_path, output_h5_filename,variable = output_h5_filename,time_int=['5S'])
+        timebase_resampler(input_path, output_h5_filename,
+                           variable = output_h5_filename,
+                           time_int=['5S'],
+                           output_path = output_path)
     
-    return 
+    return output_h5_filename 
+
+def Load_to_NonHDF(input_path= None,
+                input_filelist = None,
+                output_path = None,
+                output_h5_filename = 'CPC_sec', 
+                InputTZ = 0, 
+                OutputTZ = 0, 
+                resample_time = False, 
+                output_file_frequency = 'all',
+                force_reload_from_source = False,
+                output_file_format = 'csv',
+                
+                gui_mode = True,
+                gui_mainloop = None
+                ):
+    ''' 
+    Do all the processing in HDF, then save the final product as netcdf or csv
+    '''
+    assert output_file_format in ['csv','netcdf','nc'],'Choose either netcdf \
+                                                        or csv file format!'
+    
+    # Load the data quickly via hdf
+    base_fname = Load_to_HDF(
+                input_path= input_path,
+                input_filelist = input_filelist,
+                output_path = output_path,
+                output_h5_filename = output_h5_filename, 
+                InputTZ = InputTZ, 
+                OutputTZ = OutputTZ, 
+                resample_time = resample_time, 
+                output_file_frequency = output_file_frequency,
+                force_reload_from_source = force_reload_from_source
+                )
+    
+    os.chdir(output_path)
+    # Get the list of recently created hdf files
+    filelist = glob.glob('*'+base_fname+'*.h5')
+    
+    # Load each file then save it as the requested file formatr
+    for f in filelist:
+        d = pd.read_hdf(f,key = 'cn')
+        if output_file_format.lower() == 'csv':
+            fname = f.split('.')[0]+'.csv'
+            d.to_csv(fname)
+        else:
+            fname = f.split('.')[0]+'.nc'
+            atmoscripts.df_to_netcdf(
+                    d,
+                    nc_filename = fname,
+                     
+                    global_title = None,
+                    global_description = None,
+                    author = None,
+                    global_institution = None,
+                    global_comment = None,
+                    
+                    gui_mode=gui_mode,
+                    gui_mainloop = gui_mainloop
+                    )
+    
+    os.chdir(output_path) 
+    if os.path.isfile('netcdf_global_attributes.temp'):
+        os.remove('netcdf_global_attributes.temp')
+    
+    return
+
 
 def load_cn(data_path=None, filetype=None, fname=None):
     ''' 
@@ -105,26 +174,30 @@ def load_cn(data_path=None, filetype=None, fname=None):
         data = pd.read_hdf(fname, key='cn')
     
     elif filetype in ['netcdf','nc']:
-        # xkcd
-        data = None
+        data = atmoscripts.read_netcdf(fname, data_path)
     
     elif filetype == 'csv':
-        data = pd.read_csv(fname,skipinitialspace = True)  
+        data = pd.read_csv(fname,skipinitialspace = True,
+                           index_col=0, 
+                           parse_dates=True,
+                           infer_datetime_format=True)  
     
     return data
 
 
-def remove_previous_output(filetype, reload_from_source):
+def remove_previous_output(filetype, reload_from_source, input_flist):
     '''
     Checks if previous files have been created. If not, then return true and 
     create the new files. If so, and you've been asked to reload_from_source,
     return true. Otherwise, return false and don't reload the files. 
     '''
+    input_filelist = [f.split('/')[-1] for f in input_flist]
     filelist = glob.glob('*'+filetype)
     if len(filelist) > 0 and reload_from_source:
         # Delete files and return
         for file in filelist:
-            os.remove(file)
+            if file not in input_filelist:
+                os.remove(file)
         if os.path.isfile('files_loaded.txt'):
             os.remove('files_loaded.txt')
     return
@@ -709,6 +782,9 @@ def LoadAndProcess(cn_raw_path = None,
                    concat_file_frequency = 'all',
                    input_filelist = None,
                    
+                   gui_mode = False,
+                   gui_mainloop = None,
+                   
                    NeedsTZCorrection = False,
                    CurrentTZ = 0, 
                    OutputTZ = 0,
@@ -746,7 +822,9 @@ def LoadAndProcess(cn_raw_path = None,
                           input_filelist = input_filelist,
                           concat_file_frequency = concat_file_frequency,
                           InputTZ = CurrentTZ, 
-                          OutputTZ= OutputTZ
+                          OutputTZ= OutputTZ,
+                          gui_mode = gui_mode,
+                          gui_mainloop = gui_mainloop
                           )
     
     raw_filelist = get_raw_filelist(cn_output_path,cn_output_filetype, 'raw')
@@ -824,9 +902,14 @@ def LoadAndProcess(cn_raw_path = None,
     
         # Resample timebase and calculate uncertainties
         data = timebase_resampler(data,time_int=output_time_resolution,
-                                  input_h5_filename = file)
+                                  input_h5_filename = file,
+                                  output_filetype = cn_output_filetype,
+                                  output_path = cn_output_path,
+                                  gui_mode=gui_mode,
+                                  gui_mainloop = gui_mainloop)
     
-    
+        if os.path.isfile('netcdf_global_attributes.temp'):
+            os.remove('netcdf_global_attributes.temp')
     return data
 
 def plot_me(data, plot_each_step, var=None, title = ''):
@@ -860,14 +943,16 @@ def load_data_to_file(
                       input_filelist = None,
                       concat_file_frequency = 'all',
                       InputTZ = 0, 
-                      OutputTZ = 0
+                      OutputTZ = 0,
+                      gui_mode = True,
+                      gui_mainloop = None
                       ):
     
     assert cn_output_filetype in ['hdf','h5','netcdf','nc','csv'], "Don't \
         recognise filetype to save to. Please use hdf, h5, netcdf or csv"
     
     if cn_output_filetype in ['hdf','h5']:
-        filelist_empty = check_filelist('.h5', force_reload_from_source)
+        filelist_empty = check_filelist('.h5', force_reload_from_source,input_filelist)
         if filelist_empty:
             Load_to_HDF(input_path = cn_raw_path,
                         output_path = cn_output_path,
@@ -878,30 +963,36 @@ def load_data_to_file(
                         force_reload_from_source = force_reload_from_source
                         )
     
-    elif cn_output_filetype in ['netcdf','nc']:
-        filelist_empty = check_filelist('.nc', force_reload_from_source)
-#        if filelist_empty:
-#            Load_to_NetCDF()
-        print('I havent built this code yet! Please be patient')
-        # xkcd
-        
-    elif cn_output_filetype == 'csv':
-        print('I havent built this code yet! Please be patient')
-        # xkcd
+    elif cn_output_filetype in ['netcdf','nc','csv']:
+        filelist_empty = check_filelist('.'+cn_output_filetype, force_reload_from_source,input_filelist)
+        if filelist_empty:
+            Load_to_NonHDF(input_path = cn_raw_path,
+                        output_path = cn_output_path,
+                        output_h5_filename = filename_base,
+                        output_file_frequency = concat_file_frequency,
+                        input_filelist=input_filelist,
+                        InputTZ = InputTZ, OutputTZ = OutputTZ,
+                        force_reload_from_source = force_reload_from_source,
+                        output_file_format = cn_output_filetype,
+                        gui_mode = gui_mode,
+                        gui_mainloop = gui_mainloop
+                        )
     return
 
 
-def check_filelist(filetype, reload_from_source):
+def check_filelist(filetype, reload_from_source,input_flist):
     '''
     Checks if previous files have been created. If not, then return true and 
     create the new files. If so, and you've been asked to reload_from_source,
     return true. Otherwise, return false and don't reload the files. 
     '''
+    input_filelist = [f.split('/')[-1] for f in input_flist]
     filelist = glob.glob('*'+filetype)
     if len(filelist) > 0 and reload_from_source:
         # Delete files and return
         for file in filelist:
-            os.remove(file)
+            if file not in input_filelist:
+                os.remove(file)
         filelist_empty = True
     elif len(filelist) == 0:
         filelist_empty = True
@@ -1035,7 +1126,11 @@ def timebase_resampler(
                       RawDataPath='',
                       input_h5_filename='',
                       variable='cn',
-                      time_int='default'
+                      time_int='default',
+                      output_filetype = 'h5',
+                      output_path = None,
+                      gui_mode=False,
+                      gui_mainloop = None
                       ):
     ''' 
     Time resampling
@@ -1124,7 +1219,11 @@ def timebase_resampler(
             del data_resamp['cn_rmsn']
             # Save to file
             save_resampled_data(data,data_resamp,time,
-                                variable,input_h5_filename)
+                                variable,input_h5_filename,
+                                output_filetype,
+                                output_path,
+                                gui_mode=gui_mode,
+                                gui_mainloop = gui_mainloop)
        
     try:
         
@@ -1191,16 +1290,32 @@ def uncertainty_calc(data,
                             
     return data
 
+
 def save_resampled_data(data, data_resamp,time_int,
-                        variable = None, input_h5_filename = None):
+                        variable = None, input_h5_filename = None,
+                        output_filetype = 'h5',
+                        output_path = None,
+                        gui_mode=False,
+                        gui_mainloop = None):
+    if output_path is not None:
+        os.chdir(output_path)
     if input_h5_filename is not None:
         s = input_h5_filename.split('.')
-        outputfilename = s[0]+'_'+time_int+'.h5'
+        outputfilename = s[0]+'_'+time_int+'.'+output_filetype
     elif isinstance(data,pd.DataFrame): 
-        outputfilename = variable+'_'+time_int+'.h5'
+        outputfilename = variable+'_'+time_int+'.'+output_filetype
     else:
-        outputfilename = 'undefinedData_'+ time_int +'.h5'
-    data_resamp.to_hdf(outputfilename, key=variable)
+        outputfilename = 'undefinedData_'+ time_int +'.'+output_filetype
+    
+    if output_filetype in ['h5','hdf']:
+        data_resamp.to_hdf(outputfilename, key=variable)
+    elif output_filetype in ['nc','netcdf']:
+        atmoscripts.df_to_netcdf(data_resamp,outputfilename,
+                                 gui_mode=gui_mode,
+                                 gui_mainloop = gui_mainloop,
+                                 nc_path = output_path)
+    else:
+        data_resamp.to_csv(outputfilename)
     
     return
 

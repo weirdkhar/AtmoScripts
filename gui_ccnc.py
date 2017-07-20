@@ -17,6 +17,8 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
 import threading
+import atmoscripts
+
 
 class ccn_processing(ttk.Frame):
     
@@ -47,6 +49,17 @@ class ccn_processing(ttk.Frame):
             self._alert_bad_input(msg)
             return
         
+        if self.cb_output_filetype.get() == 'netcdf': 
+            if os.path.exists(self.output_path):
+                os.chdir(self.output_path)
+            
+            atmoscripts.save_temp_glob_att(
+                    self.nc_global_title,
+                    self.nc_global_description,
+                    self.nc_author,
+                    self.nc_global_institution,
+                    self.nc_global_comment)
+		
         # Open new window showing status with the option to cancel execution 
         # and disable input window
         self._build_status_window()
@@ -151,7 +164,9 @@ class ccn_processing(ttk.Frame):
                 press_cal = float(self.tb_calPress.get()),
                 press_meas = float(self.tb_measPress.get()),
                 plot_each_step = self.plotresults.get(),
-                input_filelist = list(self.files_raw)
+                input_filelist = list(self.files_raw),
+                gui_mode = True,
+                gui_mainloop = self.w_status
                 )
         
         self.finished_window()
@@ -169,14 +184,19 @@ class ccn_processing(ttk.Frame):
         self.lb_openFiles.delete(0,tk.END)
         
         # Update the text box
+        self.lb_openFiles.delete(0, tk.END)
         for i in range(0, len(self.files_raw)):
             self.lb_openFiles.insert(i,self.files_raw[i])
         try :
-            self.output_path
+            if self.output_path == '':
+                self.update_output_path()
         except AttributeError:
-            self.t_outputPath.insert(tk.END,self.raw_path)
-            self.output_path = self.raw_path
+            self.update_output_path()
         return
+    
+    def update_output_path(self):
+        self.t_outputPath.insert(tk.END,self.raw_path)
+        self.output_path = self.raw_path
         
     
     def browse_for_file(self):
@@ -214,7 +234,25 @@ class ccn_processing(ttk.Frame):
         elif self.correct4pressure.get() == 1:
             self.tb_calPress.configure(state='normal')
             self.tb_measPress.configure(state='normal')
+       
+    def launch_netcdf_input(self, event):
+        '''
+        Launches netcdf input when the combobox option is selected
+        '''
+        if self.cb_output_filetype.get() == 'netcdf':
+            self._build_netcdf_input_window()
         
+    def close_netcdf_window(self):
+        '''
+        Closes the netcdf window on the OK button press and saves the input 
+        as a temporary file which can be read by the code later.
+        '''
+        self.nc_global_title = self.nc_e0.get()
+        self.nc_global_description = self.nc_e1.get()
+        self.nc_author = self.nc_e2.get()
+        self.nc_global_institution = self.nc_e3.get()
+        self.nc_global_comment = self.nc_e4.get()
+        self.w_netcdf_input.destroy()
 ##-----------------------------------------------------------
 ## GUI Widgets
 ##-----------------------------------------------------------
@@ -309,6 +347,7 @@ class ccn_processing(ttk.Frame):
         self.cb_output_filetype.current(1)  # set selection
         self.cb_output_filetype.pack(pady=5, padx=10, side=tk.LEFT)
         self.cb_output_filetype.place(rely=0.16, relx=0.375)
+        self.cb_output_filetype.bind("<<ComboboxSelected>>",self.launch_netcdf_input)
         
         # Create output file frequency combobox
         file_freq=['Single file','Daily files','Weekly files','Monthly files']
@@ -561,6 +600,70 @@ calibrated by DMT, cal. pressure is 830 hPa. Sea level pressure is 1010\
     def dismiss(self):
         self.top.destroy()
 
+		
+		##-----------------------------------------------------------
+## NetCDF Description input window
+##-----------------------------------------------------------
+    def _build_netcdf_input_window(self):
+        self.w_netcdf_input = tk.Toplevel()
+        self.w_netcdf_input.title('NetCDF Input')
+        self.w_netcdf_input.geometry("300x310")
+        
+        self.w_netcdf_input.description = tk.Label(self.w_netcdf_input,
+                text = 'Please provide descriptions (global attributes) to be \
+                included in the self-describing NetCDF file \n', 
+                wraplength=300)
+        self.w_netcdf_input.description.pack()
+        
+        text = 'Dataset title'
+        self.nc_l0 = tk.Label(self.w_netcdf_input,
+                                          text = text,
+                                          wraplength = 200)
+        self.nc_l0.pack()
+        self.nc_e0 = tk.Entry(self.w_netcdf_input,width = 200)
+        self.nc_e0.pack()
+        
+        text = 'Dataset description'
+        self.nc_l1 = tk.Label(self.w_netcdf_input,
+                                          text = text,
+                                          wraplength = 200)
+        self.nc_l1.pack()
+        self.nc_e1 = tk.Entry(self.w_netcdf_input,width = 200)
+        self.nc_e1.pack()
+        
+        text = 'Author of dataset'
+        self.nc_l2 = tk.Label(self.w_netcdf_input,
+                                          text = text,
+                                          wraplength = 200)
+        self.nc_l2.pack()
+        self.nc_e2 = tk.Entry(self.w_netcdf_input,width = 200)
+        self.nc_e2.pack()
+        
+        text = 'Institution where dataset is produced'
+        self.nc_l3 = tk.Label(self.w_netcdf_input,
+                                          text = text,
+                                          wraplength = 200)
+        self.nc_l3.pack()
+        self.nc_e3 = tk.Entry(self.w_netcdf_input,width = 200)
+        self.nc_e3.pack()
+        
+        text = 'Comment'
+        self.nc_l4 = tk.Label(self.w_netcdf_input,
+                                          text = text,
+                                          wraplength = 200)
+        self.nc_l4.pack()
+        self.nc_e4 = tk.Entry(self.w_netcdf_input,width = 50)
+        self.nc_e4.pack()
+        
+        self.w_netcdf_input.spacer = tk.Label(self.w_netcdf_input,
+                                          text = ''
+                                          ).pack()
+        
+        self.nc_bt_ok = tk.Button(self.w_netcdf_input,
+                          text="OK",
+                          width = 30,
+                          command=self.close_netcdf_window)
+        self.nc_bt_ok.pack()
 
 ##-----------------------------------------------------------
 ## Processing status window
@@ -631,7 +734,7 @@ calibrated by DMT, cal. pressure is 830 hPa. Sea level pressure is 1010\
     def finished_window(self):
         self.w_finished = tk.Toplevel()
         self.w_finished.title("All finished")
-        self.w_finished.geometry("300x200")
+        self.w_finished.geometry("300x100")
         txt = tk.Message(self.w_finished,
                          text = "Processing of CCNC data complete!",
                          justify=tk.CENTER,

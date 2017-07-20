@@ -183,7 +183,11 @@ def LoadAndProcess(ccn_raw_path = None,
                    press_meas = 1010,
                    split_by_supersaturation = True,
                    plot_each_step = False,
-                   input_filelist = None
+                   input_filelist = None,
+                   
+                   gui_mode = False,
+                   gui_mainloop = None
+                   
                    ):
     '''
     Loads CCNC data from raw csv files, concatenates, then saved to output 
@@ -214,7 +218,9 @@ def LoadAndProcess(ccn_raw_path = None,
                          concat_file_frequency,
                          ccn_output_filetype,
                          force_reload_from_source,
-                         input_filelist=input_filelist
+                         input_filelist=input_filelist,
+                         gui_mode = gui_mode,
+                         gui_mainloop = gui_mainloop
                          )
         raw_filelist = get_raw_filelist(ccn_output_path,
                                         ccn_output_filetype, 
@@ -313,9 +319,13 @@ def LoadAndProcess(ccn_raw_path = None,
         # Resample timebase and calculate uncertainties
         ccn_data = timebase_resampler(ccn_data,time_int=output_time_resolution,
                           split_by_supersaturation = split_by_supersaturation,
-                          input_h5_filename = file)
+                          input_h5_filename = file,
+                          output_filetype = ccn_output_filetype,
+                          gui_mode=gui_mode,
+                          gui_mainloop = gui_mainloop)
     
-    
+    if os.path.isfile('netcdf_global_attributes.temp'):
+        os.remove('netcdf_global_attributes.temp')
     
     return
 
@@ -338,8 +348,20 @@ def get_raw_filelist(ccn_output_path, output_filetype, substring='raw'):
     os.chdir(ccn_output_path)
     flist = glob.glob('*.'+output_filetype)
     raw_filelist = [f for f in flist if substring in f]
+    
+    raw_filelist = [check_file(f) for f in raw_filelist]
+    raw_filelist = [f for f in raw_filelist if f is not None]
+    
     raw_filelist.sort()
     return raw_filelist
+
+def check_file(fname):
+    try:
+        int(fname.split('.')[0][-1])
+        return fname
+    except:
+        return None
+    
 ###############################################################################
 ### File IO
 ############################################################################### 
@@ -381,25 +403,19 @@ def load_ccn(data_path = None,
     
     elif filetype in ['netcdf','nc']:
         # xkcd
-        data = None
+        data =atmoscripts.read_netcdf(fname, data_path)
     
     elif filetype == 'csv':
-        data = pd.read_csv(fname,skipinitialspace = True)
-            
+        data = pd.read_csv(fname,
+                           skipinitialspace = True, 
+                           index_col=0, 
+                           parse_dates=True,
+                           infer_datetime_format=True)
+        
     
     return data
 
-def Load_to_NetCDF(
-                RawDataPath,
-                DestDataPath=None,
-                output_h5_filename = 'CCNC', 
-                resample_timebase = None, 
-                concat_file_frequency = 'all'
-                ):
-    ''' 
-    xkcd Need to write this - CHECK STATUS OF ATMOSCRIPTS FUNCTION THAT DOES THIS
-    '''
-    return
+
 
 def Load_to_HDF(
                 RawDataPath = None,
@@ -407,7 +423,10 @@ def Load_to_HDF(
                 output_h5_filename = 'CCNC', 
                 resample_timebase = None, 
                 concat_file_frequency = 'all',
-                input_filelist = None
+                input_filelist = None,
+                output_filetype = 'h5',
+                gui_mode=False,
+                gui_mainloop = None
                 ):
     '''
 	Load data from CSV files, concatenate and write to h5 file
@@ -468,15 +487,85 @@ def Load_to_HDF(
             filelist_ = list(filelist_df[
                     filelist_df['id'] == periods[i]]['filenames'])
     
-            save_ccn_to_hdf(filelist_, output_h5_filename_, resample_timebase)
+            save_ccn_to_hdf(filelist_, output_h5_filename_, 
+                            resample_timebase, 
+                            output_filetype = output_filetype,
+                            gui_mode=gui_mode,
+                            gui_mainloop = gui_mainloop)
     else:
-        save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase)
+        save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase, 
+                        output_filetype = output_filetype,
+                        gui_mode=gui_mode,
+                        gui_mainloop = gui_mainloop)
 ############################################        
     # If no destination path given, write files in raw data path, otherwise
     # move to destination path
     if DestDataPath is not None:
         move_files(RawDataPath, DestDataPath, '.h5')
         
+        return output_h5_filename 
+
+def Load_to_NonHDF(RawDataPath,
+                DestDataPath=None,
+                output_h5_filename = 'CCNC', 
+                resample_timebase = None, 
+                concat_file_frequency = 'all',
+                input_filelist = None,
+                output_file_format = 'csv',
+                
+                gui_mode = True,
+                gui_mainloop = None
+                ):
+    ''' 
+    Do all the processing in HDF, then save the final product as netcdf or csv
+    '''
+    assert output_file_format in ['csv','netcdf','nc'],'Choose either netcdf \
+                                                        or csv file format!'
+    
+    # Load the data quickly via hdf
+    base_fname = Load_to_HDF(
+                RawDataPath = RawDataPath,
+                DestDataPath=DestDataPath,
+                output_h5_filename = output_h5_filename, 
+                resample_timebase = resample_timebase, 
+                concat_file_frequency = concat_file_frequency,
+                input_filelist = input_filelist,
+                output_filetype = output_file_format,
+                gui_mode=gui_mode,
+                gui_mainloop = gui_mainloop
+                
+                )
+    
+    os.chdir(DestDataPath)
+    # Get the list of recently created hdf files
+    filelist = glob.glob('*'+base_fname+'*.h5')
+    
+    # Load each file then save it as the requested file format
+    for f in filelist:
+        os.chdir(DestDataPath)
+        d = pd.read_hdf(f,key = 'ccn')
+        if output_file_format.lower() == 'csv':
+            fname = f.split('.')[0]+'.csv'
+            d.to_csv(fname)
+        else:
+            fname = f.split('.')[0]+'.nc'
+            atmoscripts.df_to_netcdf(
+                    d,
+                    nc_filename = fname,
+                     
+                    global_title = None,
+                    global_description = None,
+                    author = None,
+                    global_institution = None,
+                    global_comment = None,
+                    
+                    gui_mode=gui_mode,
+                    gui_mainloop = gui_mainloop
+                    )
+    
+    os.chdir(DestDataPath) 
+    if os.path.isfile('netcdf_global_attributes.temp'):
+        os.remove('netcdf_global_attributes.temp')
     return 
 
 def Load_to_CSV(
@@ -536,7 +625,11 @@ def save_as(data,
         
     return
 
-def save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase = None):
+def save_ccn_to_hdf(filelist, output_h5_filename, 
+                    resample_timebase = None, 
+                    output_filetype = 'h5',
+                    gui_mode=False,
+                    gui_mainloop = None):
     
     #If previous file exists, append, if not start new
     if os.path.isfile(output_h5_filename +'.h5'): 
@@ -583,7 +676,10 @@ def save_ccn_to_hdf(filelist, output_h5_filename, resample_timebase = None):
     atmoscripts.write_filelist_to_file(filelist, 'files_loaded.txt')
     
     if resample_timebase is not None:
-        timebase_resampler(data, time_int = resample_timebase)   
+        timebase_resampler(data, time_int = resample_timebase, 
+                           output_filetype = output_filetype,
+                           gui_mode=gui_mode,
+                           gui_mainloop = gui_mainloop)   
         
     return
 
@@ -610,7 +706,8 @@ def check_filelist(filetype, reload_from_source):
     if len(filelist) > 0 and reload_from_source:
         # Delete files and return
         for file in filelist:
-            os.remove(file)
+            if '_' in file:
+                os.remove(file)
         filelist_empty = True
     elif len(filelist) == 0:
         filelist_empty = True
@@ -628,7 +725,9 @@ def concatenate_from_csv(
                     concat_file_frequency = 'all',
                     CCN_output_filetype='hdf',
                     reload_from_source = True,
-                    input_filelist= None
+                    input_filelist= None,
+                    gui_mode = False,
+                    gui_mainloop = None
                     ):
     '''
     Loads all the data from the csv file and saves them in either netCDF or h5
@@ -636,10 +735,20 @@ def concatenate_from_csv(
     '''
     os.chdir(CCN_output_path)
     
-    if CCN_output_filetype == 'netcdf':
-        filelist_empty = check_filelist('.nc', reload_from_source)
+    if CCN_output_filetype in ['netcdf','nc','csv']:
+        filelist_empty = check_filelist('.'+CCN_output_filetype, reload_from_source)
         if filelist_empty:
-            Load_to_NetCDF()
+            Load_to_NonHDF(
+                RawDataPath = CCN_raw_path,
+                DestDataPath=CCN_output_path,
+                output_h5_filename = output_h5_filename, 
+                resample_timebase = resample_timebase, 
+                concat_file_frequency = concat_file_frequency,
+                input_filelist = input_filelist,
+                output_file_format = CCN_output_filetype,
+                gui_mode = gui_mode,
+                gui_mainloop = gui_mainloop
+                )
     else:
         filelist_empty = check_filelist('.h5', reload_from_source)
         if filelist_empty:
@@ -648,7 +757,10 @@ def concatenate_from_csv(
                         output_h5_filename = output_h5_filename,
                         resample_timebase = resample_timebase,
                         concat_file_frequency = concat_file_frequency,
-                        input_filelist=input_filelist)
+                        input_filelist=input_filelist,
+                        output_filetype = CCN_output_filetype,
+                        gui_mode=gui_mode,
+                        gui_mainloop = gui_mainloop)
     return
 
 def read_ccn_csv(filelist):
@@ -1206,7 +1318,7 @@ def ss_transition_removal(data):
             timestamp0 = data.index[i]
             # Find timestamp of end of transition - set to n minutes after 
             # change in set point
-            timestamp1= timestamp0+ datetime.timedelta(minutes = 3)
+            timestamp1= timestamp0 + datetime.timedelta(minutes = 3)
             # Set data within the transition range to nan
             data[(data.index >= timestamp0) & (data.index < timestamp1)] = np.nan
             
@@ -1260,7 +1372,10 @@ def timebase_resampler(
                       input_h5_filename='',
                       variable='ccn',
                       time_int='default',
-                      split_by_supersaturation = True
+                      split_by_supersaturation = True,
+                      output_filetype = 'h5',
+                      gui_mode=False,
+                      gui_mainloop = None
                       ):
     ''' 
     Time resampling
@@ -1357,7 +1472,10 @@ def timebase_resampler(
                 
                 # Save to file
                 save_resampled_data(data,data_resamp,time,
-                                    variable,input_h5_filename)
+                                    variable,input_h5_filename, 
+                                    output_filetype,
+                                    gui_mode,
+                                    gui_mainloop)
                 
     else:
         
@@ -1427,7 +1545,10 @@ def timebase_resampler(
                 
                 # Save to file
                 save_resampled_data(data,data_resamp,time,
-                                    variable,input_h5_filename)
+                                    variable,input_h5_filename, 
+                                    output_filetype,
+                                    gui_mode,
+                                    gui_mainloop)
     try:
         return data_resamp
     except:
@@ -1498,15 +1619,28 @@ def uncertainty_calc(data,
     
     
 def save_resampled_data(data, data_resamp,time_int,
-                        variable = None, input_h5_filename = None):
+                        variable = None, input_h5_filename = None,
+                        output_filetype = 'h5',
+                        gui_mode=False,
+                        gui_mainloop = None):
+    
     if input_h5_filename is not None:
         s = input_h5_filename.split('.')
-        outputfilename = s[0]+'_'+time_int+'.h5'
+        outputfilename = s[0]+'_'+time_int+'.'+output_filetype
     elif isinstance(data,pd.DataFrame): 
-        outputfilename = variable+'_'+time_int+'.h5'
+        outputfilename = variable+'_'+time_int+'.'+output_filetype
     else:
-        outputfilename = 'undefinedData_'+ time_int +'.h5'
-    data_resamp.to_hdf(outputfilename, key=variable)
+        outputfilename = 'undefinedData_'+ time_int +'.'+output_filetype
+    
+    if output_filetype in ['h5','hdf']:
+        data_resamp.to_hdf(outputfilename, key=variable)
+    elif output_filetype in ['nc','netcdf']:
+        #xkcd
+        atmoscripts.df_to_netcdf(data_resamp,outputfilename,
+                                 gui_mode=gui_mode,
+                                 gui_mainloop = gui_mainloop)
+    else:
+        data_resamp.to_csv(outputfilename)
     
     return
 

@@ -12,7 +12,7 @@
 # See the README file for license details.
 #
 
-from Tkinter import *
+from tkinter import *
 
 class ToolTipManager:
 
