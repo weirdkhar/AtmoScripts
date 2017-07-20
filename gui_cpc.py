@@ -18,6 +18,7 @@ from tkinter import filedialog
 from tkinter import ttk
 import threading
 import atmoscripts
+import ToolTip
 
 class cpc_processing(ttk.Frame):
     
@@ -466,7 +467,7 @@ class cpc_processing(ttk.Frame):
                     text='Select file with mask events (optional)'
                     )
         self.f311.pack(pady=5,padx=10, fill='x')
-        self.tb2 = tk.Entry(self.f311, width=47) 
+        self.tb2 = tk.Entry(self.f311, width=45) 
         self.tb2.pack(pady=5,padx=10, fill='x', side=tk.LEFT)
         self.b3 = tk.Button(self.f311,
                          text = "Browse",
@@ -477,18 +478,36 @@ class cpc_processing(ttk.Frame):
         self.f32 = ttk.LabelFrame(self.f3, text='Flow calibration')
         self.f32.pack(pady=5,padx=10, fill='x')
         
+        # Create help tooltip
+        self.l311 = tk.Label(self.f311,text = u'\u2754')
+        self.l311.pack(pady=5,side=tk.LEFT)
+        ToolTip.ToolTip(self.l311,
+                        "Choose an ASCII file where the 1st and 2nd columns \
+                        are the start and end timestamps of the period to be \
+                        removed. Any additional columns (such as description \
+                        columns) will be ignored.")
+        
         
         self.f321 = tk.LabelFrame(self.f32, 
                     text='Select file with flow calibration data (optional)')
         self.f321.pack(pady=5,padx=10, fill='x')
         
-        self.tb3 = tk.Entry(self.f321, width=47) 
+        self.tb3 = tk.Entry(self.f321, width=45) 
         self.tb3.pack(pady=5,padx=10, side=tk.LEFT)
         self.b3 = tk.Button(self.f321,
                          text = "Browse",
                          command = self.ask_flowcal_file
                          )
         self.b3.pack(pady=5,padx=10, side=tk.LEFT)
+        
+        # Create help tooltip
+        self.l321 = tk.Label(self.f321,text = u'\u2754')
+        self.l321.pack(pady=5,side=tk.LEFT)
+        ToolTip.ToolTip(self.l321,
+                        "Choose an ASCII file where the 1st column is the  \
+                        timestamp of the flow measurement, and the second \
+                        column is the measured flow rate in units of \
+                        L/min or LPM")
         
         self.lb_flow_rate_set = tk.Label(self.f32,text="Set flow rate (LPM)")
         self.tb_flow_rate_set = tk.Entry(self.f32, width = 10)
