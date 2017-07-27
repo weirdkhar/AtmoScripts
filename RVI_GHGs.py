@@ -100,7 +100,8 @@ def resample_interpolation(df):
 def read_aerodyne_data(local_path_aer= 'r:\\RV_Investigator\\GHGs\\Aerodyne\\', 
                       startdate = '2015-01-30', 
                       enddate = '2015-02-02', 
-                      abridged = True):
+                      abridged = True,
+                      ambient_air_only = True):
     '''
     reads aerodyne data from str files, reading only the FIRST columns of 
     N2O and CO 
@@ -114,6 +115,21 @@ def read_aerodyne_data(local_path_aer= 'r:\\RV_Investigator\\GHGs\\Aerodyne\\',
     
     years = list(range(s_date.year, e_date.year+1))
     
+    df_str = read_aerodyne_data_strFiles(years,s_date,e_date,abridged)
+    df_stc = read_aerodyne_data_stcFiles(years,s_date,e_date)
+    
+    df = pd.concat([df_str,df_stc])
+    
+    if ambient_air_only:
+        amb = [True if x==0 else False for x in df[' VICI_W']]
+        df = df.loc[amb]
+    
+    return df
+
+def read_aerodyne_data_strFiles(years,s_date,e_date,abridged):
+    '''
+    Reads actual aerodyne data
+    '''
     df = []
     for yr in years:
         if os.path.isdir(local_path_aer+str(yr)):
@@ -171,6 +187,54 @@ def read_aerodyne_data(local_path_aer= 'r:\\RV_Investigator\\GHGs\\Aerodyne\\',
     
     return df
 
+def read_aerodyne_data_stcFiles(years,s_date,e_date):
+    '''
+    reads aerodyne metadata to determine the sampling (i.e. ambient air, 
+    calibration, etc)
+    '''
+    df = []
+    for yr in years:
+        if os.path.isdir(local_path_aer+str(yr)):
+            os.chdir(local_path_aer+str(yr))
+        elif os.path.isdir(local_path_aer):
+            os.chdir(local_path_aer)
+        else:
+            continue
+        filelist = glob.glob('*.stc')
+        filelist.sort()
+        for file in filelist:
+            file_date = dt.datetime.strptime(file[0:6], '%y%m%d')
+            if (file_date >= s_date) & (file_date <= e_date):
+
+                try:
+                    d = pd.read_csv(file,
+                                    low_memory=False, 
+                                    header=1,
+                                    usecols=['time',' VICI_W']
+                                    )
+                except:
+                    print('No data in file - skipping')
+                    continue
+                df.append(d)
+    # Concatenate each df in the dictionary
+    try:
+        df = pd.concat(df)
+    except:
+        print('No data to load! Check your input dates')
+        return None
+
+    
+    # Format timestamp and set as index
+    timezero = dt.datetime(1904,1,1,0,0)
+    df['Timestamp'] = [timezero + dt.timedelta(seconds=x) \
+                      for x in df['time']]
+    df = df.set_index('Timestamp')
+    
+    del df['time']
+    df.sort_index()
+    
+    
+    return df
 
 def read_picarro_data(pic_local_path= 'r:\\RV_Investigator\\GHGs\\Picarro\\', 
                       startdate = '2014-01-01', 
