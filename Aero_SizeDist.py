@@ -10,6 +10,11 @@ import re
 import os
 import atmosplots
 
+
+from scipy.optimize import curve_fit
+from matplotlib import dates
+import matplotlib.ticker as tck
+
 from matplotlib import mlab
 
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -308,3 +313,451 @@ def make_legend_axes(ax):
 #
 #    return im, cbar
 
+
+
+########################################################################################
+########################################################################################
+########################################################################################
+### 2017 update of SMPS plotting code
+########################################################################################
+########################################################################################
+########################################################################################
+
+def gaussian(x, a, b, c):
+    val = a * np.exp(-(x - b)**2 / c**2)
+    return val
+
+def _nan_curve_fit():
+    a_opt = np.empty([1,3])[0]
+    a_opt[:] = np.NaN
+    a_cov = np.empty([3,3])
+    a_cov[:] = np.NaN
+    return a_opt, a_cov
+
+def mode_max_from_dist_fit(d_mtx, 
+                           HR_fit = True,
+                           print_fit_params = False, 
+                           plot_fit = False):
+    '''
+    Works through the data matrix and fits lognormal distributions to the 3 
+    modes of the size distribution. Returns the maximum of each fitted mode as
+    a time series
+    '''
+    time = np.array([dates.date2num(d) for d in d_mtx.index]) # Time axis
+    size_arr = np.array([float(s) for s in d_mtx.columns.values]) # size axis
+    z = d_mtx.as_matrix()
+    
+    
+    mode_max = pd.DataFrame(np.nan, index=time, columns=['m1max','m2max',
+                                                         'm3max','m4max'
+#                                                         ,'mnmax'
+                                                         ])
+    for i in np.arange(0,len(time)):
+        mode_max.iloc[i] = _mode_max_from_dist_fit_worker(
+                                        dist_arr = z[i,:],
+                                        size_arr = size_arr,
+                                        print_fit_params = print_fit_params,
+                                        plot=plot_fit,
+                                        HR_fit = HR_fit) 
+    
+    return mode_max
+
+def _mode_max_from_dist_fit_worker(dist_arr, size_arr, 
+                  print_fit_params = False,plot=True, HR_fit = True):
+    
+    # Define data
+    y = dist_arr
+    x_data = size_arr
+    y0 = dist_arr[0:40]
+    y1 = dist_arr[50:85]
+    y2 = dist_arr[85::]
+    y3 = dist_arr[20:70]
+#    yn = dist_arr[0:10] # Nucleation mode
+    
+    xf = np.arange(-100,len(y),1)
+    x0 = np.arange(0,len(y0),1)
+    x1 = np.arange(0,len(y1),1)
+    x2 = np.arange(0,len(y2),1)
+    x3 = np.arange(0,len(y3),1)
+#    xn = np.arange(0,len(yn),1)
+
+    
+
+    
+    
+    #Fit and check for a valid distribution by comparing the fitted mean to input x range
+    try:
+        popt0, pcov0 = curve_fit(gaussian, x0, y0)
+        if (popt0[1] < x0.min()) or (popt0[1] > x0.max()): # Quality check
+            popt0, pcov0 = _nan_curve_fit()
+    except RuntimeError:
+        popt0, pcov0 = _nan_curve_fit()
+    
+    try:
+        popt1, pcov1 = curve_fit(gaussian, x1, y1)
+        if (popt1[1] < x1.min()) or (popt1[1] > x1.max()):
+            popt1, pcov1 = _nan_curve_fit()
+    except RuntimeError:
+        popt1, pcov1 = _nan_curve_fit()
+    
+    try:
+        popt2, pcov2 = curve_fit(gaussian, x2, y2)
+        if (popt2[1] < x2.min()) or (popt2[1] > x2.max()):
+            popt2, pcov2 = _nan_curve_fit()
+    except RuntimeError:
+        popt2, pcov2 = _nan_curve_fit()
+        
+    try:
+        popt3, pcov3 = curve_fit(gaussian, x3, y3)
+        yf3 = gaussian(x3, popt3[0], popt3[1], popt3[2])
+        fit3_err = np.sqrt(np.square(yf3/y3.max()-y3/y3.max()).sum())
+        if (popt3[1] < x3.min()) or (popt3[1] > x3.max()) or (fit3_err > 0.6) \
+            or (not np.isnan(popt0[0])): # Only use if the first mode fit doesn't work
+            popt3, pcov3 = _nan_curve_fit()            
+    except RuntimeError:
+        popt3, pcov3 = _nan_curve_fit()
+        
+#    try:
+#        poptn, pcovn = curve_fit(gaussian, xn, yn)
+#        yfn = gaussian(xn, poptn[0], poptn[1], poptn[2])
+#        fitn_err = np.sqrt(np.square(yfn/yn.max()-yn/yn.max()).sum())
+#        if (poptn[1] < xn.min()) or (poptn[1] > xn.max()):
+#            poptn, pcovn = _nan_curve_fit()            
+#    except RuntimeError:
+#        poptn, pcovn = _nan_curve_fit()
+
+    if print_fit_params:
+        # Print results
+        print("First mode")
+        print("Scale =  %.3f +/- %.3f" % (popt0[0], np.sqrt(pcov0[0, 0])))
+        print("Offset = %.3f +/- %.3f" % (popt0[1], np.sqrt(pcov0[1, 1])))
+        print("Sigma =  %.3f +/- %.3f" % (popt0[2], np.sqrt(pcov0[2, 2])))
+
+        print("Second mode")
+        print("Scale =  %.3f +/- %.3f" % (popt1[0], np.sqrt(pcov1[0, 0])))
+        print("Offset = %.3f +/- %.3f" % (popt1[1], np.sqrt(pcov1[1, 1])))
+        print("Sigma =  %.3f +/- %.3f" % (popt1[2], np.sqrt(pcov1[2, 2])))
+
+        print("Third mode")
+        print("Scale =  %.3f +/- %.3f" % (popt2[0], np.sqrt(pcov2[0, 0])))
+        print("Offset = %.3f +/- %.3f" % (popt2[1], np.sqrt(pcov2[1, 1])))
+        print("Sigma =  %.3f +/- %.3f" % (popt2[2], np.sqrt(pcov2[2, 2])))
+
+    
+    
+    
+    if HR_fit:
+        xf0_HR = np.arange(0,len(y)-0.9,0.1)
+        xf1_HR = np.arange(-50,len(y)-50.9,0.1)
+        xf2_HR = np.arange(-85,len(y)-85.9,0.1)
+        xf3_HR = np.arange(-20,len(y)-20.9,0.1)
+#        xfn_HR = np.arange(0,len(y)-0.9,0.1)
+        xf_HR_size = np.logspace(np.log10(x_data[0]),np.log10(x_data[-1]),len(xf1_HR))
+        
+        yf0_HR = gaussian(xf0_HR, popt0[0], popt0[1], popt0[2])
+        yf1_HR = gaussian(xf1_HR, popt1[0], popt1[1], popt1[2])
+        yf2_HR = gaussian(xf2_HR, popt2[0], popt2[1], popt2[2])
+        yf3_HR = gaussian(xf3_HR, popt3[0], popt3[1], popt3[2])
+#        yfn_HR = gaussian(xfn_HR, poptn[0], poptn[1], poptn[2])
+        
+    
+        
+        # Align distribution
+        ds_HR = {
+            'yf0_HR':pd.Series(yf0_HR,index=xf_HR_size),
+            'yf1_HR':pd.Series(yf1_HR,index=xf_HR_size),
+            'yf2_HR':pd.Series(yf2_HR,index=xf_HR_size),
+            'yf3_HR':pd.Series(yf3_HR,index=xf_HR_size)
+#            'yfn_HR':pd.Series(yfn_HR,index=xf_HR_size)
+             }
+        df_HR = pd.DataFrame(ds_HR)
+        # Calculate sum of all distributions
+        df_HR['fit_HR'] = np.nansum(df_HR,axis=1)
+        
+    
+        # Extract the mode size from each mode
+        yf0_HR_max = round(df_HR['yf0_HR'].idxmax(skipna=True),1)
+        yf1_HR_max = round(df_HR['yf1_HR'].idxmax(skipna=True),1)
+        yf2_HR_max = round(df_HR['yf2_HR'].idxmax(skipna=True),1)
+        yf3_HR_max = round(df_HR['yf3_HR'].idxmax(skipna=True),1)
+#        yfn_HR_max = round(df_HR['yfn_HR'].idxmax(skipna=True),1)
+        
+        
+        if plot:            
+            # Plot against diameter
+            plt.semilogx(x_data,y,'.b')
+            plt.semilogx(xf_HR_size,yf0_HR,'-r')
+            plt.semilogx(xf_HR_size,yf1_HR,'-g')
+            plt.semilogx(xf_HR_size,yf2_HR,'-m')
+            plt.semilogx(xf_HR_size,yf3_HR,'-y')
+            plt.semilogx(df_HR['fit_HR'],'-k',lw=2)
+            plt.legend(['data','y0','y1','y2','y3','sum'])
+            plt.title('HR fit against aerosol diameter')
+            plt.show()
+
+            
+        return yf0_HR_max, yf1_HR_max, yf2_HR_max, yf3_HR_max#, yfn_HR_max
+    else:
+        # Calculate model data over full x range
+        yf0 = gaussian(xf, popt0[0], popt0[1], popt0[2])
+        yf1 = gaussian(xf, popt1[0], popt1[1], popt1[2])
+        yf2 = gaussian(xf, popt2[0], popt2[1], popt2[2])
+        
+    
+        # Align distribution
+        ds = {
+            'yf0':pd.Series(yf0,index=xf),
+            'yf1':pd.Series(yf1,index=xf+50),
+            'yf2':pd.Series(yf2,index=xf+85)
+             }
+        dff = pd.DataFrame(ds)
+        # Calculate sum of all distributions
+        dff['fit'] = np.nansum(dff,axis=1)
+        df = dff.loc[0:106].set_index(x_data)
+    
+        # Extract the mode size from each mode
+        yf0_max = round(df['yf0'].idxmax(skipna=True),1)
+        yf1_max = round(df['yf1'].idxmax(skipna=True),1)
+        yf2_max = round(df['yf2'].idxmax(skipna=True),1)
+        
+        if plot:
+            # Plot data
+            plt.semilogx(x_data,y,'.b')
+    
+            # Plot model
+            plt.semilogx(
+                    df['yf0'], '--r',
+                    df['yf1'],'--g',
+                    df['yf2'],'--m')
+            plt.semilogx(df['fit'],'-k',lw=2)
+    
+            plt.xlim([14,700])
+    
+    
+            plt.show()
+    
+            input("Press Enter to continue...")
+        
+        return yf0_max, yf1_max, yf2_max
+    '''
+    # Plot both HR and normal fit together
+    plt.semilogx(x_data,y,'.b')
+    plt.semilogx(df['fit'],'-k')
+    plt.semilogx(df_HR['fit_HR'],'-g')
+    plt.legend(['Input data','fit','HR fit'])
+    plt.show()
+    '''
+
+def calc_time_tick_gap(times,ticks = 5):
+    x = (times[-1]-times[0])/ticks
+    if x < 1/24*1:
+        return 1/24*1
+    elif x < 1/24*4.5:
+        return 1/24*3
+    elif x < 1/24*7.5:
+        return 1/24*6
+    elif x < 1/24*13.5:
+        return 1/24*12
+    else:
+        return 1
+    
+def get_time_ticks(times,num_ticks=5):
+    return np.arange(np.round(times[0]),times[-1],calc_time_tick_gap(times,num_ticks))
+
+
+def plot_smps(d_mtx, fig=None, ax=None, fit_mode=False, title='Size distribution'):
+    #https://matplotlib.org/examples/images_contours_and_fields/pcolormesh_levels.html
+    # Setup data input
+    x0 = np.array([dates.date2num(d) for d in d_mtx.index]) # Time axis
+    y0 = np.array([float(s) for s in d_mtx.columns.values]) # size axis
+    x, y = np.meshgrid(x0,y0)
+    z = d_mtx.as_matrix().transpose()
+
+    z[z<1] = 1 # mask bad values so that there are no holes in the data
+
+    # Calculate the maximum in each mode using a lognormal fitting procedure
+    mode_max = mode_max_from_dist_fit(d_mtx) 
+
+    
+    # Plot contour
+    cmap = plt.get_cmap('jet')
+    if fig is None:
+        fig, ax = plt.subplots(nrows=1, figsize=(15,5))
+
+    cf = ax.contourf(x,
+                      np.log(y), 
+                      z,
+                      levels = np.logspace(1,6,100),
+                      locator=tck.LogLocator(),
+                      cmap=cmap)
+
+    ax.set_title(title)
+
+    # Format y axis labels
+    y_loc_arr = np.array([15,30,50,100,200,400,y0[-1]])
+    y_loc = tck.FixedLocator(np.log(y_loc_arr))
+    y_loc_min = tck.FixedLocator(np.log(np.concatenate((np.arange(10,100,10), np.arange(100,700,100)))))
+
+    ax.yaxis.set_major_locator(y_loc)
+    ax.set_yticklabels(y_loc_arr)
+    ax.yaxis.set_minor_locator(y_loc_min)
+    ax.set_ylabel('Mobility diameter (nm)')
+
+    # Format x axis labels
+    x_loc_arr = get_time_ticks(x0,6)
+    x_loc = tck.FixedLocator(x_loc_arr)
+    x_labels = np.array([dates.num2date(dt).strftime('%d-%b\n%H:%M') for dt in x_loc_arr])
+    ax.xaxis.set_major_locator(x_loc)
+    ax.set_xticklabels(x_labels)
+    ax.set_xlabel('Timestamp')
+
+    # Format colorbar 
+    z_loc_arr = np.logspace(1,6,6)
+#    z_loc = tck.FixedLocator(y_loc_arr)
+
+    cbar = fig.colorbar(cf, ax=ax, ticks=z_loc_arr, pad=0.01)
+
+    #cbar.ax.set_major_locator(z_loc)
+    cbar.ax.set_xticklabels(z_loc_arr)
+    cbar.set_label('dN/d(log$_{10}$d$_0$) ($cm^{-3}$)')
+
+
+    #plt.tight_layout()
+    
+    # Overlay the mode sizes
+    ax.plot(np.log(mode_max),'-k')
+    plt.show()
+    
+    return
+
+
+
+
+
+
+
+
+#def fit_smps_dist(dist_mtx,size_arr,time_index = 25, print_results = False, plot = False):
+#    d_mtx = dist_mtx
+#    x_data = size_arr
+#    i = time_index
+#    
+#    
+#    # Define data
+#    size0 = x_data[0]
+#    size1 = x_data[-1]
+#    y = d_mtx.iloc[i,:].values
+#    x = np.arange(0,len(y),1)
+#    xf = np.arange(-100,len(y),0.1)
+#
+#    y0 = d_mtx.iloc[i,0:40].values
+#    x0 = np.arange(0,len(y0),1)
+#    s0 = size_arr[0:40]
+#    
+#    y1 = d_mtx.iloc[i,50:85].values
+#    x1 = np.arange(0,len(y1),1)
+#    s1 = size_arr[50:85]
+#    
+#    y2 = d_mtx.iloc[i,85::].values
+#    x2 = np.arange(0,len(y2),1)
+#    s2 = size_arr[85::]
+#
+#    
+#    #Fit and check for a valid distribution by comparing the fitted mean to input x range
+#    try:
+#        popt0, pcov0 = curve_fit(gaussian, x0, y0)
+#        if (popt0[1] < x0.min()) or (popt0[1] > x0.max()):
+#            popt0, pcov0 = _nan_curve_fit()
+#    except RuntimeError:
+#        popt0, pcov0 = _nan_curve_fit()
+#    
+#    try:
+#        popt1, pcov1 = curve_fit(gaussian, x1, y1)
+#        if (popt1[1] < x1.min()) or (popt1[1] > x1.max()):
+#            popt1, pcov1 = _nan_curve_fit()
+#    except RuntimeError:
+#        popt1, pcov1 = _nan_curve_fit()
+#    
+#    try:
+#        popt2, pcov2 = curve_fit(gaussian, x2, y2)
+#        if (popt2[1] < x2.min()) or (popt2[1] > x2.max()):
+#            popt2, pcov2 = _nan_curve_fit()
+#    except RuntimeError:
+#        popt2, pcov2 = _nan_curve_fit()
+#    
+#    
+#    if print_results:
+#        # Print results
+#        print("First mode")
+#        print("Scale =  %.3f +/- %.3f" % (popt0[0], np.sqrt(pcov0[0, 0])))
+#        print("Offset = %.3f +/- %.3f" % (popt0[1], np.sqrt(pcov0[1, 1])))
+#        print("Sigma =  %.3f +/- %.3f" % (popt0[2], np.sqrt(pcov0[2, 2])))
+#
+#        print("Second mode")
+#        print("Scale =  %.3f +/- %.3f" % (popt1[0], np.sqrt(pcov1[0, 0])))
+#        print("Offset = %.3f +/- %.3f" % (popt1[1], np.sqrt(pcov1[1, 1])))
+#        print("Sigma =  %.3f +/- %.3f" % (popt1[2], np.sqrt(pcov1[2, 2])))
+#
+#        print("Third mode")
+#        print("Scale =  %.3f +/- %.3f" % (popt2[0], np.sqrt(pcov2[0, 0])))
+#        print("Offset = %.3f +/- %.3f" % (popt2[1], np.sqrt(pcov2[1, 1])))
+#        print("Sigma =  %.3f +/- %.3f" % (popt2[2], np.sqrt(pcov2[2, 2])))
+#
+#
+#    # Calculate model fit data over full x range
+#    xf = np.arange(-100,len(y),1)
+#    
+#    yf0 = gaussian(xf, popt0[0], popt0[1], popt0[2])
+#    yf1 = gaussian(xf, popt1[0], popt1[1], popt1[2])
+#    yf2 = gaussian(xf, popt2[0], popt2[1], popt2[2])
+#    
+#    xf_HR = np.linspace(size0,size1,num=(size1-size0)/0.1, endpoint=True)
+#    
+#    yf0_HR = gaussian(xf_HR, popt0[0], popt0[1], popt0[2])
+#    yf1_HR = gaussian(xf_HR, popt1[0], popt1[1], popt1[2])
+#    yf2_HR = gaussian(xf_HR, popt2[0], popt2[1], popt2[2])
+#    
+#
+#    # Align distribution
+#    # Figure out the base of the fit data first
+##    i0a = np.where(xf >= s0[0])[0][0]
+##    i0b = np.where(xf >= s0[-1])[0][0]
+##    i1a = np.where(xf >= s1[0])[0][0]
+##    i1b = np.where(xf >= s1[-1])[0][0]
+##    i2a = np.where(xf >= s2[0])[0][0]
+##    i2b = np.where(xf >= s2[-1])[0][0]
+##    ia = np.where(xf>= size_arr[0])[0][0]
+##    ib = np.where(xf>= size_arr[-1])[0][0]+1
+#    
+#    ds = {        'yf0':pd.Series(yf0,index=xf),        'yf1':pd.Series(yf1,index=xf+50),        'yf2':pd.Series(yf2,index=xf+85)         }
+#    dff = pd.DataFrame(ds)
+#    # Calculate sum of all distributions
+#    dff['fit'] = np.nansum(dff,axis=1)
+#    xf_idx = np.logspace(np.log10(x_data[0]),np.log10(x_data[-1]),len(xf))
+#    df = dff.iloc[ia:ib].set_index(xf_idx)
+#
+#    
+#    # Extract the mode size from each mode
+#    yf0_max = round(df['yf0'].idxmax(skipna=True),1)
+#    yf1_max = round(df['yf1'].idxmax(skipna=True),1)
+#    yf2_max = round(df['yf2'].idxmax(skipna=True),1)
+#
+#
+#    if plot:
+#        # Plot data
+#        plt.semilogx(x_data,y,'.b')
+#
+#        # Plot model
+#        plt.semilogx(df['yf0'], '--r',
+#                df['yf1'],'--g',
+#                df['yf2'],'--m')
+#        plt.semilogx(df['fit'],'-k',lw=2)
+#
+#        #plt.xlim([-2,109])
+#
+#
+#        plt.show()
+#
+#        input("Press Enter to continue...")
+#
+#    return yf0_max, yf1_max, yf2_max
