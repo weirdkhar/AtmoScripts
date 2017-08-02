@@ -1,5 +1,6 @@
 import sys
 sys.path.append('c:\\OneDrive\\RuhiFiles\\Research\\ProgramFiles\\git\\')
+sys.path.append('h:\\code\\atmoscripts\\')
 
 import datetime
 from Atmoscripts.Instruments import SMPS_Grimm
@@ -11,7 +12,7 @@ import matplotlib.dates as mdates
 import pandas as pd
 import re
 import os
-import atmosplots
+import Atmoscripts.atmosplots as atmosplots
 
 
 from scipy.optimize import curve_fit
@@ -346,6 +347,8 @@ def mode_max_from_dist_fit(d_mtx,
     modes of the size distribution. Returns the maximum of each fitted mode as
     a time series
     '''
+    d_mtx = d_mtx.dropna(axis=1, how='any') #Drop any columns where a nan exists so that curve_fit doesn't crash
+    
     time = np.array([dates.date2num(d) for d in d_mtx.index]) # Time axis
     size_arr = np.array([float(s) for s in d_mtx.columns.values]) # size axis
     z = d_mtx.as_matrix()
@@ -618,7 +621,8 @@ def plot_smps(d_mtx,
                       z,
                       levels = cont_levels,
                       locator=tick_loc,
-                      cmap=cmap)
+                      cmap=cmap,
+                      interpolation=None)
 
     ax.set_title(title)
 
