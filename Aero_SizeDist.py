@@ -1,5 +1,8 @@
+import sys
+sys.path.append('c:\\OneDrive\\RuhiFiles\\Research\\ProgramFiles\\git\\')
+
 import datetime
-import SMPS_Grimm
+from Atmoscripts.Instruments import SMPS_Grimm
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -564,8 +567,21 @@ def calc_time_tick_gap(times,ticks = 5):
 def get_time_ticks(times,num_ticks=5):
     return np.arange(np.round(times[0]),times[-1],calc_time_tick_gap(times,num_ticks))
 
+def round_to_1(x):
+    return round(x, -int(np.floor(np.log10(abs(x)))))
 
-def plot_smps(d_mtx, fig=None, ax=None, fit_mode=False, title='Size distribution'):
+def plot_smps(d_mtx, 
+              fit_lognormal_modes = True,
+              fig=None, ax=None, 
+              zlim = [10**1, 10**6],
+              logscale_z = True,
+              title='Size distribution',
+              xlabel = 'Timestamp',
+              ylabel = 'Mobility diameter (nm)',
+              zlabel = 'dN/d(log$_{10}$d$_0$) ($cm^{-3}$)',
+              saveorshowplot = 'show',
+              output_path = None,
+              outputfilename = 'SMPS.png'):
     #https://matplotlib.org/examples/images_contours_and_fields/pcolormesh_levels.html
     # Setup data input
     x0 = np.array([dates.date2num(d) for d in d_mtx.index]) # Time axis
@@ -575,33 +591,49 @@ def plot_smps(d_mtx, fig=None, ax=None, fit_mode=False, title='Size distribution
 
     z[z<1] = 1 # mask bad values so that there are no holes in the data
 
-    # Calculate the maximum in each mode using a lognormal fitting procedure
-    mode_max = mode_max_from_dist_fit(d_mtx) 
+    
 
     
     # Plot contour
     cmap = plt.get_cmap('jet')
-    if fig is None:
+    if logscale_z:
+        tick_loc = tck.LogLocator()
+        cont_levels = np.logspace(np.log10(zlim[0]),np.log10(zlim[1]),100)
+        z_loc_arr = np.logspace(np.log10(zlim[0]),np.log10(zlim[1]),6)
+    else:
+        tick_loc = tck.LinearLocator()
+        cont_levels = np.linspace(zlim[0],zlim[1],100)
+        z_loc_arr = np.array([round_to_1(x) for x in np.linspace(zlim[0],zlim[1],6)])
+    
+    
+    if (fig is None) and (ax is None):
         fig, ax = plt.subplots(nrows=1, figsize=(15,5))
+    elif (fig is None) or (ax is None):
+        assert True, \
+            'You must pass both a figure and axis object in to the \
+            size distribution plotting routine'
 
     cf = ax.contourf(x,
                       np.log(y), 
                       z,
-                      levels = np.logspace(1,6,100),
-                      locator=tck.LogLocator(),
+                      levels = cont_levels,
+                      locator=tick_loc,
                       cmap=cmap)
 
     ax.set_title(title)
 
     # Format y axis labels
-    y_loc_arr = np.array([15,30,50,100,200,400,y0[-1]])
+    y_loc_arr = np.logspace(np.log10(y0[0]),np.log10(y0[-1]),7)
+    rounding = [round_to_1(y) for y in y_loc_arr[1:-1]]
+    y_loc_arr = np.append(np.insert(rounding,0,np.ceil(y_loc_arr[0])),np.floor(y_loc_arr[-1]))
+    
     y_loc = tck.FixedLocator(np.log(y_loc_arr))
     y_loc_min = tck.FixedLocator(np.log(np.concatenate((np.arange(10,100,10), np.arange(100,700,100)))))
 
     ax.yaxis.set_major_locator(y_loc)
     ax.set_yticklabels(y_loc_arr)
     ax.yaxis.set_minor_locator(y_loc_min)
-    ax.set_ylabel('Mobility diameter (nm)')
+    ax.set_ylabel(ylabel)
 
     # Format x axis labels
     x_loc_arr = get_time_ticks(x0,6)
@@ -609,33 +641,41 @@ def plot_smps(d_mtx, fig=None, ax=None, fit_mode=False, title='Size distribution
     x_labels = np.array([dates.num2date(dt).strftime('%d-%b\n%H:%M') for dt in x_loc_arr])
     ax.xaxis.set_major_locator(x_loc)
     ax.set_xticklabels(x_labels)
-    ax.set_xlabel('Timestamp')
+    ax.set_xlabel(xlabel)
 
     # Format colorbar 
-    z_loc_arr = np.logspace(1,6,6)
-#    z_loc = tck.FixedLocator(y_loc_arr)
-
     cbar = fig.colorbar(cf, ax=ax, ticks=z_loc_arr, pad=0.01)
 
-    #cbar.ax.set_major_locator(z_loc)
     cbar.ax.set_xticklabels(z_loc_arr)
-    cbar.set_label('dN/d(log$_{10}$d$_0$) ($cm^{-3}$)')
+    cbar.set_label(zlabel)
 
 
-    #plt.tight_layout()
+    if fit_lognormal_modes:
+        # Calculate the maximum in each mode using a lognormal fitting procedure
+        mode_max = mode_max_from_dist_fit(d_mtx) 
+        # Overlay the mode sizes
+        ax.plot(np.log(mode_max),'-k')
     
-    # Overlay the mode sizes
-    ax.plot(np.log(mode_max),'-k')
-    plt.show()
+    
+    atmosplots.saveorshowplot(plt,saveorshowplot,output_path,outputfilename)
     
     return
 
 
 
+import glob
+os.chdir('c:\\OneDrive\\RuhiFiles\\Research\\Projects\\2016_V02_CAPRICORN\\Data_Processing\\Aerosols\\SMPS_TSI\\')
 
+flist = glob.glob('*SMPS*')
 
+data = pd.read_csv(flist[2], skiprows=23,encoding='mbcs')
+timestr = [date +' '+ time for date, time in zip(data['Date'], data['Start Time'])]
+data = data.set_index(pd.Series([pd.to_datetime(d) for d in timestr]))
+d_mtx = data.iloc[:,8:115]
+    
 
-
+plot_smps(d_mtx, title='TSI SMPS', zlim=[10,10**6],logscale_z = True, saveorshowplot = 'show')
+plt.show()
 
 #def fit_smps_dist(dist_mtx,size_arr,time_index = 25, print_results = False, plot = False):
 #    d_mtx = dist_mtx
