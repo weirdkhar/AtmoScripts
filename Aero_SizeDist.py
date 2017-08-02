@@ -584,7 +584,7 @@ def plot_smps(d_mtx,
               zlabel = 'dN/d(log$_{10}$d$_0$) ($cm^{-3}$)',
               saveorshowplot = 'show',
               output_path = None,
-              outputfilename = 'SMPS.png'):
+              output_filename = 'SMPS.png'):
     #https://matplotlib.org/examples/images_contours_and_fields/pcolormesh_levels.html
     # Setup data input
     x0 = np.array([dates.date2num(d) for d in d_mtx.index]) # Time axis
@@ -592,7 +592,7 @@ def plot_smps(d_mtx,
     x, y = np.meshgrid(x0,y0)
     z = d_mtx.as_matrix().transpose()
 
-    z[z<1] = 1 # mask bad values so that there are no holes in the data
+    z[z<zlim[0]] = zlim[0] # mask bad values so that there are no holes in the data
 
     
 
@@ -661,6 +661,6 @@ def plot_smps(d_mtx,
         ax.plot(np.log(mode_max),'-k')
     
     
-    atmosplots.saveorshowplot(plt,saveorshowplot,output_path,outputfilename)
+    atmosplots.saveorshowplot(plt,saveorshowplot,output_path,output_filename)
     
     return
