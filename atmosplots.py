@@ -41,7 +41,7 @@ from PyPDF2 import PdfFileMerger, PdfFileReader
 #from mpl_toolkits.basemap import Basemap as basemap #Only works on python2.7
 import windrose as wr # https://pypi.python.org/pypi/windrose/
 #import cartopy as crt #doesn't work
-import Aero_SizeDist as aero_sizedist
+from Atmoscripts import Aero_SizeDist as aero_sizedist
 
 
 
