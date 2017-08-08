@@ -10,7 +10,7 @@ import glob
 import pickle
 import numpy as np
 import re
-import atmoscripts
+import AtmoScripts as atmoscripts
 import matplotlib.pyplot as plt
 
 

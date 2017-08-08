@@ -29,8 +29,8 @@ import os
 import glob
 import pickle
 import importlib.util
-import atmoscripts
-import RVI_Underway
+import AtmoScripts as atmoscripts
+from RVI import RVI_Underway
 import datetime
 import argparse
 import matplotlib.pyplot as plt
