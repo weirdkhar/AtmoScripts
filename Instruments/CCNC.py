@@ -29,7 +29,7 @@ import os
 import glob
 import pickle
 import importlib.util
-import AtmoScripts as atmoscripts
+import AtmoScripts.atmoscripts as atmoscripts
 from RVI import RVI_Underway
 import datetime
 import argparse
