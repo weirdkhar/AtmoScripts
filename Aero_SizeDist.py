@@ -1,9 +1,11 @@
 import sys
 sys.path.append('c:\\OneDrive\\RuhiFiles\\Research\\ProgramFiles\\git\\')
-sys.path.append('h:\\code\\atmoscripts\\')
+#sys.path.append('h:\\code\\atmoscripts\\')
+sys.path.append('h:\\code\\')
 
 import datetime
-from Atmoscripts.Instruments import SMPS_Grimm
+
+from AtmoScripts.Instruments import SMPS_Grimm
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -12,7 +14,7 @@ import matplotlib.dates as mdates
 import pandas as pd
 import re
 import os
-import Atmoscripts.atmosplots as atmosplots
+from AtmoScripts import atmosplots
 
 
 from scipy.optimize import curve_fit
