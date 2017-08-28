@@ -588,7 +588,10 @@ def plot_smps(d_mtx,
     #https://matplotlib.org/examples/images_contours_and_fields/pcolormesh_levels.html
     # Setup data input
     x0 = np.array([dates.date2num(d) for d in d_mtx.index]) # Time axis
-    y0 = np.array([float(s) for s in d_mtx.columns.values]) # size axis
+    try: #try tsi first
+        y0 = np.array([float(s) for s in d_mtx.columns.values]) # size axis
+    except: #otherwise its grimm!
+        y0 = np.array([float(s.split(' ')[0]) for s in d_mtx.columns.values])
     x, y = np.meshgrid(x0,y0)
     z = d_mtx.as_matrix().transpose()
 
@@ -664,3 +667,21 @@ def plot_smps(d_mtx,
     atmosplots.saveorshowplot(plt,saveorshowplot,output_path,output_filename)
     
     return
+
+
+def extract_size_cols_tsi(df):
+    ''' Extracts the column labels of the columns which refer to the bin sizes'''
+    d = []
+    for col in df.columns:
+        try:
+            float(col)
+            d.append(col)
+        except:
+            continue
+    return d
+
+def extract_size_cols_grimm(df):
+    ''' Extracts the column labels of the columns which refer to the bin sizes'''
+    cols = [col for col in df.columns if 'nm' in col]
+    return cols
+    
