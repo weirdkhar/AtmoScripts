@@ -4,13 +4,15 @@ Function related to the loading and processing of CPC instruments from TSI
 version: 0.0
 date: 2016-09-09
 """
+import sys
+sys.path.append('h:\\code\\')
 import pandas as pd
 import os
 import glob
 import pickle
 import numpy as np
 import re
-import AtmoScripts.atmoscripts as atmoscripts
+from AtmoScripts import atmoscripts
 import matplotlib.pyplot as plt
 
 
@@ -832,10 +834,10 @@ def LoadAndProcess(cn_raw_path = None,
     for file in raw_filelist:    
         # Load data
         data = load_cn(fname = file)
-#        if load_from_filetype == "csv":
-#            data = load_cn(cn_output_path,cn_output_filetype)
-#        else:
-#            data = load_cn(cn_raw_path, load_from_filetype)
+        if load_from_filetype == "csv":
+            data = load_cn(cn_output_path,cn_output_filetype)
+        else:
+            data = load_cn(cn_raw_path, load_from_filetype)
         
         plot_me(data, plot_each_step,'Concentration','raw')
         
