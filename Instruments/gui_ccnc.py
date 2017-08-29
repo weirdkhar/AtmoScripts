@@ -9,6 +9,8 @@ Useful documentation:
     http://pyinmyeye.blogspot.com.au/2012/08/tkinter-combobox-demo.html
     http://www.python-course.eu/tkinter_layout_management.php
 '''
+import sys
+sys.path.append('h:\\code\\')
 import CCNC
 import os
 import sys
@@ -17,8 +19,8 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
 import threading
-import atmoscripts
-import ToolTip
+from AtmoScripts import atmoscripts
+from AtmoScripts import ToolTip
 
 class ccn_processing(ttk.Frame):
     
