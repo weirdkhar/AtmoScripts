@@ -16,17 +16,10 @@ GREAT BASEMAP tutorial - https://basemaptutorial.readthedocs.io/en/latest/plotti
 
 
 To install basemap:
-http://stackoverflow.com/questions/18109859/how-to-install-matplotlib-basemap-module-on-windows-7-with-winpython-or-any-pyt
+in anaconda prompt type:
+conda install -c conda-forge basemap-data-hires=1.0.8.dev0
 
-First of all, you must have pip in your computer. (It is much easier to install, compared with Basemap and other things. And it can be used to install many useful packages.)
-Then go this great link: http://www.lfd.uci.edu/~gohlke/pythonlibs/
-
-And download the file named "basemap‑1.0.8‑cp27‑none‑win_amd64.whl".
-Remove the .whl file to directory "C:\Python27". (Maybe you installed your python in different disk, then change it accordingly.)
-Open terminal. (Use cmd or Git Bash or something else.)
-Use command:
-pip install basemap‑1.0.8‑cp27‑none‑win_amd64.whl
-
+From <https://stackoverflow.com/questions/34979424/importing-mpl-toolkits-basemap-on-windows> 
 '''
 import os
 import math
