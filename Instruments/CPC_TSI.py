@@ -828,16 +828,20 @@ def LoadAndProcess(cn_raw_path = None,
                           gui_mode = gui_mode,
                           gui_mainloop = gui_mainloop
                           )
-    
-    raw_filelist = get_raw_filelist(cn_output_path,cn_output_filetype, 'raw')
+    if (load_from_filetype == 'hdf') and (input_filelist is not None):
+        raw_filelist = input_filelist
+    else:
+        raw_filelist = get_raw_filelist(cn_output_path,cn_output_filetype, 'raw')
 
     for file in raw_filelist:    
         # Load data
-        data = load_cn(fname = file)
-        if load_from_filetype == "csv":
-            data = load_cn(cn_output_path,cn_output_filetype)
-        else:
-            data = load_cn(cn_raw_path, load_from_filetype)
+        try:
+            data = load_cn(fname = file)
+        except:
+            if load_from_filetype == "csv":
+                data = load_cn(cn_output_path,cn_output_filetype)
+            else:
+                data = load_cn(cn_raw_path, load_from_filetype)
         
         plot_me(data, plot_each_step,'Concentration','raw')
         
@@ -1027,7 +1031,9 @@ def save_as(data,
     
     if filetype in ['hdf','h5']:
         fname = get_filenamebase('h5', filename_appendage, fname_current)
-                
+        fname_components = fname.split('.')
+        if fname_components[-1] == 'hdf':
+            fname = fname_components[0]+'.h5'
         # Save data to file
         data.to_hdf(fname, key='cn')
     
@@ -1310,6 +1316,9 @@ def save_resampled_data(data, data_resamp,time_int,
         outputfilename = 'undefinedData_'+ time_int +'.'+output_filetype
     
     if output_filetype in ['h5','hdf']:
+        fname_components = outputfilename.split('.')
+        if fname_components[-1] == 'hdf':
+            outputfilename = fname_components[0]+'.h5'
         data_resamp.to_hdf(outputfilename, key=variable)
     elif output_filetype in ['nc','netcdf']:
         atmoscripts.df_to_netcdf(data_resamp,outputfilename,
