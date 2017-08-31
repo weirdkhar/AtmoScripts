@@ -1285,7 +1285,7 @@ def plot_smps_aps_nano(
     return
 
 
-def saveorshowplot(plt,SaveOrShowPlot, outputpath, outputfilename):
+def saveorshowplot(plt,SaveOrShowPlot, outputpath, outputfilename,dpi=None):
     outputfilename = friendly_filename(outputfilename)
     
     if SaveOrShowPlot.lower() == 'show':
@@ -1298,7 +1298,7 @@ def saveorshowplot(plt,SaveOrShowPlot, outputpath, outputfilename):
                 os.makedirs(outputpath)
             print('Output path was not specified. Plots have been saved to "Desktop\Plots".')
         os.chdir(outputpath)
-        plt.savefig(outputfilename+'.png')
+        plt.savefig(outputfilename+'.png',dpi=dpi)
         #save2pdf(fig,outputfilename+'.pdf',outputpath)
         plt.close()
     elif SaveOrShowPlot.lower() == 'wait':
