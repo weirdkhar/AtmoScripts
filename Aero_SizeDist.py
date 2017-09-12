@@ -575,6 +575,35 @@ def get_time_ticks(times,num_ticks=5):
 def round_to_1(x):
     return round(x, -int(np.floor(np.log10(abs(x)))))
 
+
+def _fill_smps_times(d):
+    '''
+    Creates a new dataframe that is rebased onto a continuous time series base.
+    '''
+    d['tvalue'] = d.index
+    d['delta'] = (d['tvalue']-d['tvalue'].shift()).fillna(0)
+    m = d['delta'].median()
+    idx = []
+    i0 = 0
+    for i in range(0,len(d)):
+        if d['delta'][i] > 2*m:
+            idx.append(d.index[i0:i-1])
+            idx_fill = pd.date_range(d.index[i-1],d.index[i],freq=m)
+    
+            idx.append(idx_fill)
+            i0 = i
+    idx.append(d.index[i0::])
+    idx_dt = idx[0]
+    for i in range(1,len(idx)):
+        idx_dt = idx_dt.append(idx[i])
+    idx_dt = idx_dt.sort_values()
+
+    df = pd.DataFrame(index=idx_dt)
+    df = pd.concat([df,d],join='outer',axis=1)
+    
+    df = df.drop(['tvalue','delta'],axis=1)
+    return df
+
 def plot_smps(d_mtx, 
               fit_lognormal_modes = True,
               fig=None, ax=None, 
@@ -588,6 +617,8 @@ def plot_smps(d_mtx,
               output_path = None,
               output_filename = 'SMPS.png'):
     #https://matplotlib.org/examples/images_contours_and_fields/pcolormesh_levels.html
+    d_mtx = _fill_smps_times(d_mtx)
+    
     # Setup data input
     x0 = np.array([dates.date2num(d) for d in d_mtx.index]) # Time axis
     try: #try tsi first
@@ -598,9 +629,6 @@ def plot_smps(d_mtx,
     z = d_mtx.as_matrix().transpose()
 
     z[z<zlim[0]] = zlim[0] # mask bad values so that there are no holes in the data
-
-    
-
     
     # Plot contour
     cmap = plt.get_cmap('jet')
