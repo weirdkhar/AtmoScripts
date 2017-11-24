@@ -772,7 +772,8 @@ def subplots(INDEXED_DATA,
              LOGSCALES = None,
              LEGENDS = None,
              LEGENDLOCATIONS = None,
-             
+             BBOX_TO_ANCHOR = None,
+			 
              sharex = True,
              figsize = (9,9),
              
@@ -798,9 +799,12 @@ def subplots(INDEXED_DATA,
         LEGENDS = [None] * len(INDEXED_DATA)
     if LEGENDLOCATIONS is None:
         LEGENDLOCATIONS = [1] * len(INDEXED_DATA)
+    if BBOX_TO_ANCHOR is None:
+        BBOX_TO_ANCHOR = [None] * len(INDEXED_DATA)
+	
     
     f, axarr = plt.subplots(len(INDEXED_DATA),1, sharex=sharex, figsize = figsize)
-    for j, (dat, logscale, xlim, ylim, title, xlabel, ylabel, logscale, legend, legendLoc) in enumerate(zip(INDEXED_DATA, LOGSCALES, XLIMS, YLIMS, TITLES, XLABELS, YLABELS, LOGSCALES, LEGENDS, LEGENDLOCATIONS)):
+    for j, (dat, logscale, xlim, ylim, title, xlabel, ylabel, logscale, legend, legendLoc, bbox_anchor) in enumerate(zip(INDEXED_DATA, LOGSCALES, XLIMS, YLIMS, TITLES, XLABELS, YLABELS, LOGSCALES, LEGENDS, LEGENDLOCATIONS, BBOX_TO_ANCHOR)):
         ax = axarr[j]
         if logscale:
             ax.semilogy(dat,'.')
@@ -815,7 +819,7 @@ def subplots(INDEXED_DATA,
         ax.set_ylabel(ylabel)
         f.autofmt_xdate() # Automatically rotate the date axis labels
         if legend is not None:
-            ax.legend(legend, loc=legendLoc, numpoints = 1)
+            ax.legend(legend, bbox_to_anchor=bbox_anchor, loc=legendLoc, numpoints = 1)
         
     
     saveorshowplot(plt,SaveOrShowPlot,outputpath,outputfilename)
