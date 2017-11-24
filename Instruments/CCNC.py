@@ -500,10 +500,10 @@ def Load_to_HDF(
 ############################################        
     # If no destination path given, write files in raw data path, otherwise
     # move to destination path
-    if DestDataPath is not None:
-        move_files(RawDataPath, DestDataPath, '.h5')
-        
-        return output_h5_filename 
+#    if DestDataPath is not None:
+#        move_files(RawDataPath, DestDataPath, '.h5')
+#        
+#        return output_h5_filename 
 
 def Load_to_NonHDF(RawDataPath,
                 DestDataPath=None,
