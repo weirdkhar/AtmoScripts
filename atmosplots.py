@@ -549,7 +549,7 @@ def plot(x_data = None,
     ticks = axes_object.get_xticks()
     
     # if we're plotting time on the x axis, Set the x-tick format to change depending on the span being plotted
-    if type(x_data[0]) is pd.tslib.Timestamp:
+    if type(x_data[0]) is pd.Timestamp:
         if xlim is not None:
             # convert string date to datetime
             if type(xlim[0]) is str:
