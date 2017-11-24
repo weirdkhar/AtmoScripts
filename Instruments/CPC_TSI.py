@@ -378,30 +378,66 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
             # The csv file that you've read isn't actually a TSI CPC file
             return
         
-        data = pd.DataFrame(columns = {'Timestamp', 'Concentration'})
+        data = pd.DataFrame(columns = {'Timestamp', 'Concentration','Counts','Analog 1','Analog 2'})
         for rowidx in range(0,len(chunk)):
             if not first_load:
                 if (chunk['Sample #'][rowidx] <= last_loaded_sample) and (read_filename == last_loaded_file):
                     continue
-            # Create timestamp and extract concentration for each sample in chunk
+            # Create timestamp and extract concentration, counts, and analog inputs (where available) for each sample in chunk
             timestamp = [chunk['sample_timestamp'][rowidx]+pd.Timedelta(seconds=x) for x in range(0,chunk['Sample Length'][rowidx])]            
-            conc = chunk.loc[rowidx][12:(12+chunk['Sample Length'][rowidx])]
+            
+ #           conc = chunk.loc[rowidx][12:(12+chunk['Sample Length'][rowidx])]
+            
+            cols_conc = [c for c in chunk.columns if 'Conc (#' in c]
+            if len(cols_conc)>0:
+                conc = chunk.loc[rowidx][cols_conc]
+            else:
+                conc = pd.Series(np.nan, index=np.arange(0,len(timestamp)))
+            
+            cols_count = [c for c in chunk.columns if 'Count' in c]
+            if len(cols_count)>0:
+                count = chunk.loc[rowidx][cols_count]
+            else:
+                conc = pd.Series(np.nan, index=np.arange(0,len(timestamp)))
+            
+            cols_analog1 = [c for c in chunk.columns if 'Analog 1' in c]
+            if len(cols_analog1)>0:
+                a1 = chunk.loc[rowidx][cols_analog1]
+            else:
+                conc = pd.Series(np.nan, index=np.arange(0,len(timestamp)))
+            
+            cols_analog2 = [c for c in chunk.columns if 'Analog 2' in c]
+            if len(cols_analog2)>0:
+                a2 = chunk.loc[rowidx][cols_analog2]
+            else:
+                conc = pd.Series(np.nan, index=np.arange(0,len(timestamp)))
             
             print('Formatting sample ' + str(chunk['Sample #'].loc[rowidx]) 
                   + ' of ' + numsamples + ' from file ' + read_filename)
             
             # Format data as dataframe
-            data_temp = pd.DataFrame({'Timestamp': timestamp, 'Concentration': conc.values})
+            data_temp = pd.DataFrame({'Timestamp': timestamp, 
+                                      'Concentration': conc.values,
+                                      'Counts' : count.values,
+                                      'Analog 1' : a1.values,
+                                      'Analog 2' : a2.values})
             # Append new data to current data
             data = pd.concat([data,data_temp])
-      
+        
+        # Drop empty columns
+        for col in data.columns:
+            if data[col].count() == 0:
+                del data[col]
+        
+        
         if len(data) != 0:
             # Drop duplicates that may be present
             data = data.drop_duplicates(subset='Timestamp', keep='last')
             # Set index
             data = data.set_index('Timestamp')
             # Coerce data to the correct type, dealing with infinite values output from AIM
-            data['Concentration'] = [np.nan if x == '1.#INF'  else float(x) for x in data['Concentration']]
+            for col in data.columns:
+                data[col] = [np.nan if x == '1.#INF'  else float(x) for x in data[col]]
             
             #Correct for Timezone offsets caused by AIM exporting process
             if InputTZ-OutputTZ != 0 :
