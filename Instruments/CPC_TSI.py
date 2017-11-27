@@ -390,27 +390,27 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
             
             cols_conc = [c for c in chunk.columns if 'Conc (#' in c]
             if len(cols_conc)>0:
-                conc = chunk.loc[rowidx][cols_conc]
+                conc = chunk.loc[rowidx][cols_conc][0:chunk['Sample Length'][rowidx]]
             else:
                 conc = pd.Series(np.nan, index=np.arange(0,len(timestamp)))
             
             cols_count = [c for c in chunk.columns if 'Count' in c]
             if len(cols_count)>0:
-                count = chunk.loc[rowidx][cols_count]
+                count = chunk.loc[rowidx][cols_count][0:chunk['Sample Length'][rowidx]]
             else:
-                conc = pd.Series(np.nan, index=np.arange(0,len(timestamp)))
+                count = pd.Series(np.nan, index=np.arange(0,len(timestamp)))
             
             cols_analog1 = [c for c in chunk.columns if 'Analog 1' in c]
             if len(cols_analog1)>0:
-                a1 = chunk.loc[rowidx][cols_analog1]
+                a1 = chunk.loc[rowidx][cols_analog1][0:chunk['Sample Length'][rowidx]]
             else:
-                conc = pd.Series(np.nan, index=np.arange(0,len(timestamp)))
+                a1 = pd.Series(np.nan, index=np.arange(0,len(timestamp)))
             
             cols_analog2 = [c for c in chunk.columns if 'Analog 2' in c]
             if len(cols_analog2)>0:
-                a2 = chunk.loc[rowidx][cols_analog2]
+                a2 = chunk.loc[rowidx][cols_analog2][0:chunk['Sample Length'][rowidx]]
             else:
-                conc = pd.Series(np.nan, index=np.arange(0,len(timestamp)))
+                a2 = pd.Series(np.nan, index=np.arange(0,len(timestamp)))
             
             print('Formatting sample ' + str(chunk['Sample #'].loc[rowidx]) 
                   + ' of ' + numsamples + ' from file ' + read_filename)
@@ -421,6 +421,7 @@ def read_cpc_csv(read_filename, output_filename_base, output_file_frequency, Inp
                                       'Counts' : count.values,
                                       'Analog 1' : a1.values,
                                       'Analog 2' : a2.values})
+
             # Append new data to current data
             data = pd.concat([data,data_temp])
         
