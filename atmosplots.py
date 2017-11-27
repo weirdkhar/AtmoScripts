@@ -400,6 +400,8 @@ def plot(x_data = None,
          legendLocation = 'lower right',
          legend='',
          legend_R='',
+         bbox_to_anchor = None,
+         leg_ncols = 1,
          title = '',
          xlim = None,
          ylim = None,
@@ -412,7 +414,8 @@ def plot(x_data = None,
          outputpath = None
          ):
     ''' Function that plots each subplot '''
-    y_data = pd.DataFrame(y_data)    
+    y_data = pd.DataFrame(y_data)
+
     
     if legend !=  '':
         drawLegend = True
@@ -448,18 +451,20 @@ def plot(x_data = None,
 #        else:
 #            #a1 = axes_object.plot(x_data,y_data_i,'.',label=legend)
 #            a1 = axes_object.scatter(x_data,y_data_i,c=z_data,edgecolors='none',facecolor = colors[i],label=legend)
-    if logscale:
-         a1 = axes_object.semilogy(x_data,y_data,markerstyle, label=legend,markeredgecolor='none')
-    else:
-#        if z_data is None: 
-        if y_data.shape[1]>1:
-            a1 = axes_object.plot(x_data,y_data,markerstyle,label=legend,markeredgecolor='none')
-#        else: #only plotting 1 dataset, but with z data optional. Need to use this to add a colorbar
-        #a1 = axes_object.scatter(x_data, y_data, c=z_data, cmap = colormap, marker = markerstyle, edgecolors='none', label=legend)
+    a1s = []
+    for col, lgd in zip(y_data.columns, legend):
+        if logscale:
+             a1 = axes_object.semilogy(x_data,y_data[col],markerstyle, label=lgd,markeredgecolor='none')
         else:
-            a1 = axes_object.scatter(x_data, y_data, c=z_data, marker = markerstyle, edgecolors='none', label=legend)
-#         a1 = axes_object.plot(x_data, y_data, c=z_data, color = colormap, marker = markerstyle, markeredgecolor='none', label=legend)
-         
+    #        if z_data is None: 
+            if y_data.shape[1]>1:
+                a1 = axes_object.plot(x_data,y_data[col],markerstyle,label=lgd,markeredgecolor='none')
+    #        else: #only plotting 1 dataset, but with z data optional. Need to use this to add a colorbar
+            #a1 = axes_object.scatter(x_data, y_data, c=z_data, cmap = colormap, marker = markerstyle, edgecolors='none', label=legend)
+            else:
+                a1 = axes_object.scatter(x_data, y_data[col], c=z_data, marker = markerstyle, edgecolors='none', label=lgd)
+    #         a1 = axes_object.plot(x_data, y_data, c=z_data, color = colormap, marker = markerstyle, markeredgecolor='none', label=legend)
+        a1s = a1s + a1  
          
     axes_object.set_ylabel(ylabel, fontsize=14)
     axes_object.set_xlabel(xlabel, fontsize=14)
@@ -499,21 +504,26 @@ def plot(x_data = None,
     if y_data_R is not None:
         ax = axes_object.twinx()
         # Change colour cycle for second axes
-        #from cycler import cycler
-        #ax.set_prop_cycle(cycler('color', ['c', 'm', 'y', 'k']) +
-        #           cycler('lw', [1, 2, 3, 4]))
-        for advance in range(y_data.shape[1]):
-            next(ax._get_lines.prop_cycler)
+#        from cycler import cycler
+#        ax.set_prop_cycle(cycler('color', ['c', 'm', 'y', 'k']) +
+#                   cycler('lw', [1, 2, 3, 4]))
+#        for advance in range(y_data.shape[1]):
+#            next(ax._get_lines.prop_cycler)
+        colors = ['c', 'm', 'y', 'k']
         
         # Change any series data to dataframe so that iteration will work 
         y_data_R = pd.DataFrame(y_data_R)
+        a2s = []
         for i in range(len(y_data_R.columns)):
             y_data_i = y_data_R.iloc[:,i]
             if logscale:
-                a2 = ax.semilogy(x_data,y_data_i,'.',label=legend_R)
+                a2 = ax.semilogy(x_data,y_data_i,'.',label=legend_R, color=colors[i])
             else:
-                #a2 = ax.plot(x_data,y_data_i,'.',label=legend_R)        
-                a2 = ax.scatter(x_data,y_data_i,c=z_data,edgecolors='none',label=legend_R)        
+                if y_data.shape[1]>1:
+                    a2 = ax.plot(x_data,y_data_i,'.',label=legend_R,markeredgecolor='none', color=colors[i])        
+                else:
+                    a2 = ax.scatter(x_data,y_data_i,c=z_data,edgecolors='none',label=legend_R, color=colors[i])   
+            a2s = a2s+a2
         ax.set_ylabel(ylabel_R)
         
         if ylim_R is not None:
@@ -525,15 +535,23 @@ def plot(x_data = None,
         
         if drawLegend:
             # Create combined legend
-            l1 = a1.get_label()
-            l2 = a2.get_label()
-            labs = [l1,l2]
-            a1s = [a1,a2]
+            labels1 = [a.get_label() for a in a1s]
+            labels2 = [a.get_label() for a in a2s]
+            
+
+            
+            labs = labels1+labels2
+            axes = a1s+a2s
             #labs = [l.get_label() for l in a1s]
-            ax.legend(a1s, labs, loc=legendLocation, numpoints = 1)
+            ax.legend(axes, labs, loc=legendLocation, 
+                      bbox_to_anchor = bbox_to_anchor, ncol= leg_ncols, 
+                      numpoints = 1)
     else:
         if drawLegend:
-            axes_object.legend(legend, loc=legendLocation, numpoints = 1)
+            axes_object.legend(legend, loc=legendLocation, 
+                               bbox_to_anchor = bbox_to_anchor, ncol= leg_ncols, 
+                               numpoints = 1)
+            
     
     
     # Make the axes pretty and show
