@@ -6,6 +6,8 @@ date: 2016-09-09
 """
 import sys
 sys.path.append('h:\\code\\')
+sys.path.append('e:\\OneDrive\\RuhiFiles\\Research\\ProgramFiles\\github\\')
+sys.path.append('e:\\OneDrive\\RuhiFiles\\Research\\ProgramFiles\\git\\')
 import pandas as pd
 import os
 import glob
