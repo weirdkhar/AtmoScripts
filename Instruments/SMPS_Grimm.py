@@ -1,4 +1,5 @@
-def Load_to_HDF(RawDataPath, output_filename = 'SMPS_Grimm'):
+def Load_to_HDF(RawDataPath = None, output_filename = 'SMPS_Grimm',
+                filelist = None,outputDir = None, dailyOutput = False):
 	'''
 	Function to load all raw files, concatenate and save as HDF file for easy loading
 	'''
@@ -7,54 +8,73 @@ def Load_to_HDF(RawDataPath, output_filename = 'SMPS_Grimm'):
 	import glob
 	import os
 	
-	os.chdir(RawDataPath)
-	filename = output_filename
+
+	if filelist is None:
+		os.chdir(RawDataPath)
 	
-      # Get the list of files to import
-	filelist = glob.glob('*.raw')
+       # Get the list of files to import
+		filelist = glob.glob('*.raw')
 	filelist.sort()
- 
-      # Remove temp h5 file generated from the last time this was run
-	if os.path.isfile(filename+'_temp.h5'):
-		os.remove(filename+'_temp.h5')
 	
+      # Remove temp h5 file generated from the last time this was run
+	if not dailyOutput:
+		filename = output_filename
+		if os.path.isfile(filename+'_temp.h5'):
+			os.remove(filename+'_temp.h5')
+	
+
       # Iterate through importing each file
-	for i in range(len(filelist)):
-		data_temp = pd.read_csv(filelist[i],
+      
+	for f in filelist:
+		data_temp = pd.read_csv(f,
 								header = 0,
 								sep = '\t',
 								engine = 'python')
+		if len(data_temp) > 0:
+            # Truncate the time to the nearest 5 minutes and make this the index
+			ns5min=5*60*1000000000   # 5 minutes in nanoseconds
+			time_index = pd.to_datetime(data_temp['Time Start'],dayfirst=True)
+			time_index = pd.DatetimeIndex(((time_index.astype(np.int64) // ns5min + 1 ) * ns5min))
+
+			data_temp['time_index'] = time_index
+			data_temp = data_temp.set_index('time_index')
+
+			if dailyOutput:
+				filename = f.split('/')[-1].split('.')[0]
+				data_temp.to_hdf(outputDir + filename+'_temp.h5', key='smps')
+			else:
+            # Initialise data variable, otherwise append data
+				try:
+					data
+				except NameError:
+					data = data_temp # data doesn't exist yet, initialise
+				else:
+					# data has been initialised, therefore, just append.
+					data = data.append(data_temp)
+
+                    
+				if outputDir is not None:
+					data.to_hdf(outputDir + filename+'_temp.h5', key='smps')
+				else:
+					data.to_hdf(filename+'_temp.h5', key='smps')        
+	try:	
+		#Remove duplicates
+		data = data.drop_duplicates()
+	 	
+		# Sort data by ascending time
+		data = data.sort_index()
 		
-		# Truncate the time to the nearest 5 minutes and make this the index
-		ns5min=5*60*1000000000   # 5 minutes in nanoseconds
-		time_index = pd.to_datetime(data_temp['Time Start'],dayfirst=True)
-		time_index = pd.DatetimeIndex(((time_index.astype(np.int64) // ns5min + 1 ) * ns5min))
-		
-		data_temp['time_index'] = time_index
-		data_temp = data_temp.set_index('time_index')
-		
-		# Initialise data variable, otherwise append data
-		try:
-			data
-		except NameError:
-			data = data_temp # data doesn't exist yet, initialise
-		else:
-			# data has been initialised, therefore, just append.
-			data = data.append(data_temp)
-		
-		data.to_hdf(filename+'_temp.h5', key='smps')
-		
-	#Remove duplicates
-	data = data.drop_duplicates()
- 	
-	# Sort data by ascending time
-	data = data.sort_index()
+         # Remove the temporary file
+		os.remove(filename+'_temp.h5')
 	
-      #Save the new dataset so you don't have to wait for the processing again.
-	data.to_hdf(filename+'_raw.h5', key='smps')
-     
-     # Remove the temporary file
-	os.remove(filename+'_temp.h5')
+		if outputDir is not None:
+			os.chdir(outputDir)
+
+       #Save the new dataset so you don't have to wait for the processing again.
+		data.to_hdf(filename+'_raw.h5', key='smps')
+	except:
+		#do nothing
+		filename = filename
 	return
 	
 def size_bins():
