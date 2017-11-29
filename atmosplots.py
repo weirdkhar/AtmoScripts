@@ -427,10 +427,10 @@ def plot(x_data = None,
     if (y_data_R is not None):    #If there is a second axis to plot, use a legend
         drawLegend = True
         
-    if (legend == '') and drawLegend:
+    if (legend == ''):
         legend = y_data.columns.values.tolist()
-    if (legend_R == '') and drawLegend:
-        legend_R = ylabel_R
+    if (legend_R == '') and (y_data_R is not None):
+        legend_R = y_data_R.columns.values.tolist()
     
     
     if z_data is not None:
@@ -468,17 +468,17 @@ def plot(x_data = None,
 #            #a1 = axes_object.plot(x_data,y_data_i,'.',label=legend)
 #            a1 = axes_object.scatter(x_data,y_data_i,c=z_data,edgecolors='none',facecolor = colors[i],label=legend)
     a1s = []
-    for col, lgd in zip(y_data.columns, legend):
+    for col, lgd, color in zip(y_data.columns, legend, col_L):
         if logscale:
-             a1 = axes_object.semilogy(x_data,y_data[col],markerstyle, label=lgd,markeredgecolor='none')
+             a1 = axes_object.semilogy(x_data,y_data[col],markerstyle, label=lgd,markeredgecolor='none', color=color)
         else:
     #        if z_data is None: 
-            if y_data.shape[1]>1:
-                a1 = axes_object.plot(x_data,y_data[col],markerstyle,label=lgd,markeredgecolor='none')
+            if y_data.shape[1]>=1:
+                a1 = axes_object.plot(x_data,y_data[col],markerstyle,label=lgd,markeredgecolor='none', color=color)
     #        else: #only plotting 1 dataset, but with z data optional. Need to use this to add a colorbar
             #a1 = axes_object.scatter(x_data, y_data, c=z_data, cmap = colormap, marker = markerstyle, edgecolors='none', label=legend)
             else:
-                a1 = axes_object.scatter(x_data, y_data[col], c=z_data, marker = markerstyle, edgecolors='none', label=lgd)
+                a1 = axes_object.scatter(x_data, y_data[col], c=z_data, marker = markerstyle, edgecolors='none', label=lgd, color=color)
     #         a1 = axes_object.plot(x_data, y_data, c=z_data, color = colormap, marker = markerstyle, markeredgecolor='none', label=legend)
         a1s = a1s + a1  
          
