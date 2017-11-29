@@ -415,7 +415,12 @@ def plot(x_data = None,
          ):
     ''' Function that plots each subplot '''
     y_data = pd.DataFrame(y_data)
-
+    ncols = y_data.shape[1]
+    if y_data_R is not None:
+        y_data_R = pd.DataFrame(y_data_R)
+        ncols_R = y_data_R.shape[1]
+    else:
+        ncols_R = 0
     
     if legend !=  '':
         drawLegend = True
@@ -442,7 +447,18 @@ def plot(x_data = None,
         fig.add_subplot()
     
     if colors is None:
-        colors = ['b','g','r','c','m','y','k']
+        n= ncols+ncols_R
+        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+        if n > len(colors):
+            max_value = 16581375 #255**3    
+            interval = int(max_value / n)
+            colors_hex = [hex(I)[2:].zfill(6) for I in range(0, max_value, interval)]
+            colors = [(int(i[:2], 16)/256, int(i[2:4], 16)/256, int(i[4:], 16)/256) for i in colors_hex]
+        
+    col_L = colors[0:ncols]
+    col_R = colors[ncols:n]
+
+            
     
 #    for i in range(len(y_data.columns)):
 #        y_data_i = y_data.iloc[:,i]
@@ -509,20 +525,18 @@ def plot(x_data = None,
 #                   cycler('lw', [1, 2, 3, 4]))
 #        for advance in range(y_data.shape[1]):
 #            next(ax._get_lines.prop_cycler)
-        colors = ['c', 'm', 'y', 'k']
+#        colors = ['c', 'm', 'y', 'k']
         
-        # Change any series data to dataframe so that iteration will work 
-        y_data_R = pd.DataFrame(y_data_R)
         a2s = []
-        for i in range(len(y_data_R.columns)):
-            y_data_i = y_data_R.iloc[:,i]
+        for col, lgd, color in zip(y_data_R.columns, legend_R, col_R):
+            y_data_i = y_data_R[col]
             if logscale:
-                a2 = ax.semilogy(x_data,y_data_i,'.',label=legend_R, color=colors[i])
+                a2 = ax.semilogy(x_data,y_data_i,'.',label=lgd, color=color)
             else:
-                if y_data.shape[1]>1:
-                    a2 = ax.plot(x_data,y_data_i,'.',label=legend_R,markeredgecolor='none', color=colors[i])        
+                if y_data.shape[1]>=1:
+                    a2 = ax.plot(x_data,y_data_i,'.',label=lgd,markeredgecolor='none', color=color) 
                 else:
-                    a2 = ax.scatter(x_data,y_data_i,c=z_data,edgecolors='none',label=legend_R, color=colors[i])   
+                    a2 = ax.scatter(x_data,y_data_i,c=z_data,edgecolors='none',label=legend_R, color=color)
             a2s = a2s+a2
         ax.set_ylabel(ylabel_R)
         
