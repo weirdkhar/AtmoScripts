@@ -573,7 +573,10 @@ def get_time_ticks(times,num_ticks=5):
     return np.arange(np.round(times[0]),times[-1],calc_time_tick_gap(times,num_ticks))
 
 def round_to_1(x):
-    return round(x, -int(np.floor(np.log10(abs(x)))))
+    if x != 0:
+        return round(x, -int(np.floor(np.log10(abs(x)))))
+    else:
+        return 0
 
 
 def _fill_smps_times(d):
@@ -599,13 +602,14 @@ def _fill_smps_times(d):
     idx_dt = idx_dt.sort_values()
 
     df = pd.DataFrame(index=idx_dt)
+    df = df.loc[~df.index.duplicated(keep='first')] # Keep only unique indices
     df = pd.concat([df,d],join='outer',axis=1)
     
     df = df.drop(['tvalue','delta'],axis=1)
     return df
 
 def plot_smps(d_mtx, 
-              fit_lognormal_modes = True,
+              fit_lognormal_modes = False,
               fig=None, ax=None, 
               zlim = [10**1, 10**6],
               logscale_z = True,
