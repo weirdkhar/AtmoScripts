@@ -319,16 +319,24 @@ def weekly_cycle(data_timeseries,
 def windrose(wd, ws, bins = np.arange(0,35,5),
              colormap = plt.cm.hot,
              title = 'Wind Rose',
+             legend = True,
              legendposition = 'lower left',
+             bbox_to_anchor = None,
              SaveOrShowPlot='show',
-             output_path = None,
              outputfilename = 'windrose.pdf',
-             outputpath = None
+             outputpath = None,
+             fig = None,
+             rect = None
              ):
-                 
-    ax = wr.WindroseAxes.from_ax()
+    if fig is not None and rect is not None:
+        ax = wr.WindroseAxes(fig,rect)
+        fig.add_axes(ax)
+    else:
+        ax = wr.WindroseAxes.from_ax()
+        
     bins = ax.bar(wd, ws, normed=True, bins = bins, cmap=colormap)
-    ax.legend(loc = legendposition)
+    if legend:
+        ax.legend(loc = legendposition, bbox_to_anchor = bbox_to_anchor)
     ax.set_title(title)
     
     saveorshowplot(plt,SaveOrShowPlot,outputpath,outputfilename)
