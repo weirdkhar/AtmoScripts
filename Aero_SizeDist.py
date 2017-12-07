@@ -583,6 +583,7 @@ def _fill_smps_times(d):
     '''
     Creates a new dataframe that is rebased onto a continuous time series base.
     '''
+    pd.options.mode.chained_assignment = None # ignore SettingWithCopyWarning 
     d['tvalue'] = d.index
     d['delta'] = (d['tvalue']-d['tvalue'].shift()).fillna(0)
     m = d['delta'].median()
@@ -612,6 +613,7 @@ def plot_smps(d_mtx,
               fit_lognormal_modes = False,
               fig=None, ax=None, 
               zlim = [10**1, 10**6],
+              xlim = None,
               logscale_z = True,
               title='Size distribution',
               xlabel = 'Timestamp',
@@ -631,8 +633,9 @@ def plot_smps(d_mtx,
         y0 = np.array([float(s.split(' ')[0]) for s in d_mtx.columns.values])
     x, y = np.meshgrid(x0,y0)
     z = d_mtx.as_matrix().transpose()
-
-    z[z<zlim[0]] = zlim[0] # mask bad values so that there are no holes in the data
+    
+    with np.errstate(invalid='ignore'): # ignore runtimewarning about nan values
+        z[z<zlim[0]] = zlim[0] # mask bad values so that there are no holes in the data
     
     # Plot contour
     cmap = plt.get_cmap('jet')
@@ -677,6 +680,8 @@ def plot_smps(d_mtx,
     ax.set_ylabel(ylabel)
 
     # Format x axis labels
+    if xlim is not None:
+        ax.set_xlim(xlim)
     x_loc_arr = get_time_ticks(x0,6)
     x_loc = tck.FixedLocator(x_loc_arr)
     x_labels = np.array([dates.num2date(dt).strftime('%d-%b\n%H:%M') for dt in x_loc_arr])
