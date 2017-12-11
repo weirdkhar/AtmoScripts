@@ -583,7 +583,7 @@ def plot(x_data = None,
     if xlim is None:
         xlim = [x_data.min(),x_data.max()]
     axes_object.set_xlim(xlim)
-    
+
     
     
     ticks = axes_object.get_xticks()
@@ -632,8 +632,10 @@ def plot(x_data = None,
             xax.set_tick_params(which='major', pad=15)
         else:                
             axes_object.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%Y-%b-%d'))
-            axes_object.set_xticks(np.linspace(ticks[0], d.date2num(d.num2date(ticks[-1])), 5))
-            axes_object.set_xticks(np.linspace(ticks[0], d.date2num(d.num2date(ticks[-1])), 25), minor=True)
+            minorTicks = d.DayLocator() # put a tick on every day
+            axes_object.xaxis.set_minor_locator(minorTicks)
+            
+        
 
     plt.tight_layout()    
     
